@@ -2,7 +2,7 @@
 // [name: mrconliAccountRuntime]
 // [desc: mrconli系列插件共用的账号保存、批量登录、查询选择、备注、付费授权、积分兑换、青龙同步、管理员授权和过期清理实现。]
 // [author: mrconli / sillyGirl]
-// [version: v1.0.0]
+// [version: v1.0.1]
 // [status: true]
 // [admin: false]
 // [public: true]

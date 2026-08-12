@@ -2,7 +2,7 @@
 // [name: huShangAYiQianDao]
 // [desc: 基于 SmallCat 微信账号完成沪上阿姨会员登录和小满活动每日签到]
 // [author: sillyGirl]
-// [version: v1.2.1]
+// [version: v1.2.2]
 // [rule: ^\s*(沪上阿姨|沪上签到|[Hh][Uu][Ss][Hh][Ee][Nn][Gg])\s*(查询|强制|dry-run|force)?\s*$]
 // [status: true]
 // [admin: false]

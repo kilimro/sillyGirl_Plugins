@@ -3,7 +3,7 @@
 // [language: nodejs]
 // [class: 工具]
 // [author: SillyGirl]
-// [version: v1.0.0]
+// [version: v1.0.1]
 // [public: true]
 // [status: true]
 // [admin: false]

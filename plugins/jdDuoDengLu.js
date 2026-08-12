@@ -2,7 +2,7 @@
 // [name: jdDuoDengLu]
 // [desc: 迁移 BBK、NarkPro、QRabbitPro 和自动化登录队列，支持账密、短信、扫码、续期检测及青龙同步]
 // [author: qingge,specter]
-// [version: v1.6.0]
+// [version: v1.6.1]
 // [rule: ^(BBK版本|socksout|socksret|socks导入|兔子检测)$]
 // [rule: ^(帐密|账密)(登录|登陆|刷新|检测刷新|临时刷新|删除|清理|重置|停止)$]
 // [rule: ^(登录|登陆|短信登录|短信登陆|扫码|口令|密码登录|pro账密|更新账号)$]

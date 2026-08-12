@@ -2,7 +2,7 @@
 // [name: chaJianShunYiChongDuiHuan]
 // [desc: 顺易充积分、商城库存查询、批量兑换及账号授权维护]
 // [author: huawei]
-// [version: v1.1.0]
+// [version: v1.1.1]
 // [rule: ^顺易充(时间|删除|修正|总结|库存|库存兑换|代理|代理配置|代理查询)$]
 // [status: true]
 // [admin: false]

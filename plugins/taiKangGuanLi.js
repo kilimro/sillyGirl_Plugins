@@ -2,7 +2,7 @@
 // [name: taiKangGuanLi]
 // [desc: 泰康账号unionId/openId校验、积分查询、授权支付、青龙或DumbPanel同步、账号清理，并保留签到/步数挑战/答题/任务API。]
 // [author: rujingxianghai]
-// [version: v3.0.1]
+// [version: v3.0.2]
 // [rule: raw ^(泰康|tk)(登录|登陆)$|^登(录|陆)(泰康|tk)$|^(泰康|tk)(查询|管理|授权|检测|教程)$]
 // [cron: 0 5 * * *]
 // [status: true]

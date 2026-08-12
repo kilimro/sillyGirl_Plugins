@@ -2,7 +2,7 @@
 // [name: tmuyunJinhuaRuntime]
 // [desc: 掌上武义/西施眼共用的天目云账号登录、金华学习、阅读点赞分享、抽奖滑块、资产查询、账号管理与青龙同步实现。]
 // [author: 601712460 / sillyGirl]
-// [version: v1.0.0]
+// [version: v1.0.1]
 // [status: true]
 // [admin: false]
 // [public: true]

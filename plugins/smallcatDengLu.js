@@ -2,7 +2,7 @@
 // [name: smallcatDengLu]
 // [desc: 通过 smallcat 二维码扫码登录和删除已保存账号]
 // [author: sillyGirl]
-// [version: v1.1.3]
+// [version: v1.1.4]
 // [rule: ^\s*sm(登录|退出)(?:\s+(.+))?\s*$]
 // [status: true]
 // [admin: false]

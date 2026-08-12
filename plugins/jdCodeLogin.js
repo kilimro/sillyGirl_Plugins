@@ -2,7 +2,7 @@
 // [name: jdCodeLogin]
 // [desc: 通过 SmallCat OAuth 获取京东 PT Cookie，并同步 JD_COOKIE 到青龙或呆呆]
 // [author: smallfawn]
-// [version: v1.1.3]
+// [version: v1.1.4]
 // [rule: ^\s*(京东登录|京东同步|京东CODE登录|[Jj][Dd]登录|[Jj][Dd]同步)\s*$]
 // [status: true]
 // [admin: true]

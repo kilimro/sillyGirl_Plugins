@@ -2,7 +2,7 @@
 // [name: eLeMeCodeDengLu]
 // [desc: 输入饿了么 wx.login CODE 换完整 Cookie；不带 CODE 时自动读取 SmallCat 首个可用账号，可选同步青龙/呆呆 elmck]
 // [author: sillyGirl]
-// [version: v1.1.3]
+// [version: v1.1.4]
 // [rule: ^\s*(饿了么Code|饿了么|[Ee][Ll][Mm])\s*(登录|换[Cc]ookie|取[Cc][Kk])?\s*([^\s]+)?\s*$]
 // [status: true]
 // [admin: false]
