@@ -30,15 +30,22 @@ function createAccountRuntime(spec) {
     auth = new Bucket(`${spec.prefix}.auth`);
   const Config = new plugin.Form({
     panel_type: plugin.Form.string().title("面板类型(qinglong/daidai)").default("qinglong"),
-    panel_config: plugin.Form.string().title("呆呆面板配置(URL丨AppKey丨Secret)").default("").visibleWhen("panel_type","==","daidai"),
-    qinglong_id: plugin.Form.integer().title("青龙容器编号").min(1).default(1).visibleWhen("panel_type","==","qinglong"),
+    panel_config: plugin.Form.string()
+      .title("呆呆面板配置(URL丨AppKey丨Secret)")
+      .default("")
+      .visibleWhen("panel_type", "==", "daidai"),
+    qinglong_id: plugin.Form.integer()
+      .title("青龙容器编号")
+      .min(1)
+      .default(1)
+      .visibleWhen("panel_type", "==", "qinglong"),
     var_name: plugin.Form.string().title("青龙变量名").default(spec.defaultEnvName),
     price: plugin.Form.number().title("每账号每月价格").min(0).default(1),
     coin: plugin.Form.integer().title("每账号每月积分").min(0).default(0),
     coin_bucket: plugin.Form.string().title("积分数据桶").default("dd_sign_points"),
     qr_code: plugin.Form.string().title("收款码图片URL").default(""),
     is_proxy: plugin.Form.boolean().title("启用代理").default(false),
-    proxy_pool: plugin.Form.string().title("代理池API").default("").visibleWhen("is_proxy","==",true),
+    proxy_pool: plugin.Form.string().title("代理池API").default("").visibleWhen("is_proxy", "==", true),
     notify: plugin.Form.string().title("过期通知渠道").default(""),
     notify_days: plugin.Form.integer().title("提前通知天数").min(0).max(365).default(3),
     timeout_ms: plugin.Form.integer().title("接口超时毫秒").min(3000).max(120000).default(15000),

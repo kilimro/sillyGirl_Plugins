@@ -51,21 +51,22 @@ const configForm = new plugin.Form({
   scope: plugin.Form.string().title("Scope").default(DEFAULT_SCOPE).required(),
   redirect_uri: plugin.Form.string()
     .title("活动页地址（第一段 OAuth 入口）")
-    .description("必须填「无 token 的活动页入口」（默认值即可）。插件会用它发起第一段 OAuth 并自动提取当日 SSO sid，无需任何手写 sid。请勿改成 bindAccount/new 链接。")
+    .description(
+      "必须填「无 token 的活动页入口」（默认值即可）。插件会用它发起第一段 OAuth 并自动提取当日 SSO sid，无需任何手写 sid。请勿改成 bindAccount/new 链接。",
+    )
     .default(DEFAULT_REDIRECT_URI)
     .required(),
   state: plugin.Form.string().title("State").default(""),
 
-  activity_url: plugin.Form.string()
-    .title("签到活动页")
-    .default(DEFAULT_ACTIVITY_URL)
-    .required(),
+  activity_url: plugin.Form.string().title("签到活动页").default(DEFAULT_ACTIVITY_URL).required(),
 
   // 手动模式专属：留空则读取 smallcat 面板内全部账号。
   // 用 .visibleWhen("mode","==","手动模式") 声明：仅当模式为「手动模式」时才显示。
   manual_openids: plugin.Form.string()
     .title("手动模式 OpenID 列表（仅手动模式）")
-    .description("仅「手动模式」生效；每行/逗号/空格分隔一个 OpenID。留空则读取 smallcat 面板内全部账号。授权模式下忽略本项。")
+    .description(
+      "仅「手动模式」生效；每行/逗号/空格分隔一个 OpenID。留空则读取 smallcat 面板内全部账号。授权模式下忽略本项。",
+    )
     .widget("textarea")
     .visibleWhen("mode", "==", "手动模式")
     .default(""),
@@ -73,7 +74,9 @@ const configForm = new plugin.Form({
   // 同样用 .visibleWhen 声明仅在「手动模式」显示。
   manual_cookie: plugin.Form.string()
     .title("手动模式 Cookie（逃逸）")
-    .description("可选。手动模式下填写：直接提供已签权的 Cookie（含 QWHD_SESSION_TOKEN），跳过 OAuth。留空则按 OpenID 自动获取。")
+    .description(
+      "可选。手动模式下填写：直接提供已签权的 Cookie（含 QWHD_SESSION_TOKEN），跳过 OAuth。留空则按 OpenID 自动获取。",
+    )
     .visibleWhen("mode", "==", "手动模式")
     .default(""),
 
@@ -320,7 +323,7 @@ async function acquireCookie(openid, config, timeoutMs) {
   // 签到只认 QWHD_SESSION_TOKEN，缺失即等于「未登录」。提前报错，避免白打一次签到接口。
   if (!/QWHD_SESSION_TOKEN=/.test(cookie)) {
     throw new Error(
-      `未获取到 QWHD_SESSION_TOKEN（HTTP ${stage2.httpStatus}）。两段式 OAuth 失败，请检查 smallcat 账号与 appid 是否匹配该公众号。`
+      `未获取到 QWHD_SESSION_TOKEN（HTTP ${stage2.httpStatus}）。两段式 OAuth 失败，请检查 smallcat 账号与 appid 是否匹配该公众号。`,
     );
   }
   return cookie;
@@ -395,8 +398,7 @@ async function main() {
   }
 
   const config = await configForm.get();
-  const timeoutMs =
-    Math.max(5, Math.min(Number(config.timeout_sec) || 30, 120)) * 1000;
+  const timeoutMs = Math.max(5, Math.min(Number(config.timeout_sec) || 30, 120)) * 1000;
 
   // 命令后追加的 openid 优先（规则：^(...)\s+(\S+)$）
   const explicit = sender.param ? await sender.param(2) : "";
@@ -421,12 +423,14 @@ async function main() {
       "❌ 未找到任何 OpenID。请确认：\n" +
         "• 手动模式：在插件配置填写「手动模式 OpenID 列表」，或确保 smallcat 面板内有已绑定账号\n" +
         "• 授权模式：确保 smallcat 面板内有已授权账号\n" +
-        "（当前 smallcat 面板编号：" + (config.panel_id || 1) + "）"
+        "（当前 smallcat 面板编号：" +
+        (config.panel_id || 1) +
+        "）",
     );
   }
 
   await sender.reply(
-    `📱 中国移动10086签到（模式：${text(config.mode) === "手动模式" ? "手动模式" : "授权模式"} / 共 ${targets.length} 个账号）`
+    `📱 中国移动10086签到（模式：${text(config.mode) === "手动模式" ? "手动模式" : "授权模式"} / 共 ${targets.length} 个账号）`,
   );
 
   const results = [];
@@ -454,9 +458,7 @@ async function main() {
   }
 
   const okCount = results.filter((r) => r.includes("✅")).length;
-  await sender.reply(
-    ["—— 共 " + targets.length + " 个，成功 " + okCount + " 个", ...results].join("\n")
-  );
+  await sender.reply(["—— 共 " + targets.length + " 个，成功 " + okCount + " 个", ...results].join("\n"));
 }
 
 main().catch((error) => sender.reply(`❌ 签到失败：${error.message}`));

@@ -28,7 +28,7 @@ const BASE = "https://app.wodeev.com",
   agent = new Bucket("G_SYC_AGENT");
 const form = new plugin.Form({
   is_proxy: plugin.Form.boolean().title("启用代理").default(false),
-  proxy_api: plugin.Form.string().title("代理池API").default("").visibleWhen("is_proxy","==",true),
+  proxy_api: plugin.Form.string().title("代理池API").default("").visibleWhen("is_proxy", "==", true),
   timeout_ms: plugin.Form.integer().title("接口超时毫秒").min(3000).max(120000).default(15000),
 });
 let cfg = {};

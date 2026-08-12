@@ -49,14 +49,16 @@ const pluginConfig = new plugin.Form({
     .title("手动 openid")
     .description("仅手动填写模式生效；多个用逗号、空格或换行分隔；留空读取全部账号")
     .widget("textarea")
-    .default("").visibleWhen("account_mode", "==", "manual"),
+    .default("")
+    .visibleWhen("account_mode", "==", "manual"),
   accounts_json: plugin.Form.string()
     .title("手动账号 JSON")
     .description(
       '仅手动填写模式生效且优先于手动 openid；留空从 SmallCat 读取；示例：[{"name":"京东账号1","openid":"openid"}]',
     )
     .widget("textarea")
-    .default("").visibleWhen("account_mode", "==", "manual"),
+    .default("")
+    .visibleWhen("account_mode", "==", "manual"),
   sync_panel: plugin.Form.select([
     { label: "同步青龙", value: "qinglong" },
     { label: "同步呆呆", value: "daidai" },
@@ -68,12 +70,14 @@ const pluginConfig = new plugin.Form({
     .title("青龙面板编号")
     .description("后台青龙容器页面里的编号，从 1 开始")
     .widget("qinglong-panel")
-    .default(1).visibleWhen("sync_panel", "==", "qinglong"),
+    .default(1)
+    .visibleWhen("sync_panel", "==", "qinglong"),
   daidai_id: plugin.Form.integer()
     .title("呆呆面板编号")
     .description("后台呆呆容器页面里的编号，从 1 开始")
     .widget("daidai-panel")
-    .default(1).visibleWhen("sync_panel", "==", "daidai"),
+    .default(1)
+    .visibleWhen("sync_panel", "==", "daidai"),
   ql_cookie_env_name: plugin.Form.string().title("环境变量名").default(JD_COOKIE_ENV_NAME),
   request_timeout: plugin.Form.integer().title("请求超时秒数").min(5).max(90).default(30),
 });
