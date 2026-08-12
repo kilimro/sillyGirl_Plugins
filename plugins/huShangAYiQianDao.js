@@ -77,7 +77,7 @@ const pluginConfig = new plugin.Form({
     .title("手动 openid")
     .description("仅手动填写模式生效；多个用逗号、空格或换行分隔；留空读取全部账号")
     .widget("textarea")
-    .default(""),
+    .default("").visibleWhen("account_mode", "==", "manual"),
   account_selector: plugin.Form.string()
     .title("执行账号")
     .description("留空取首个可用账号；可填序号、openid、昵称；填“全部”执行全部可用账号")

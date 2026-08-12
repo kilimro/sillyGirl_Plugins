@@ -30,7 +30,7 @@ const Config = new plugin.Form({
     .description("Host丨ClientID丨ClientSecret；留空使用Vorto配置/青龙容器")
     .default(""),
   use_daipanel: plugin.Form.boolean().title("使用DumbPanel").default(false),
-  panel_group: plugin.Form.string().title("DumbPanel分组").default(""),
+  panel_group: plugin.Form.string().title("DumbPanel分组").default("").visibleWhen("use_daipanel","==",true),
   vip_money: plugin.Form.number().title("每账号每月价格").min(0).default(1),
   coin: plugin.Form.integer().title("每账号每月积分").min(0).default(0),
   notify: plugin.Form.string().title("通知渠道").default(""),

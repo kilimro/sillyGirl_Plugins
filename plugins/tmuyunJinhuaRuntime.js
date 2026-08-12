@@ -41,12 +41,12 @@ function createRuntime(spec) {
       .min(0)
       .max(2)
       .default(0),
-    proxy: plugin.Form.string().title("固定代理").default(""),
-    proxy_api: plugin.Form.string().title("代理API").default(""),
+    proxy: plugin.Form.string().title("固定代理").default("").visibleWhen("proxy_mode","==",1),
+    proxy_api: plugin.Form.string().title("代理API").default("").visibleWhen("proxy_mode","==",2),
     ocr_host: plugin.Form.string().title("ddddocr服务地址").description("提供 /capcode 接口").default(""),
     sync_ql: plugin.Form.boolean().title("同步青龙").default(false),
-    qinglong_id: plugin.Form.integer().title("青龙容器编号").min(1).default(1),
-    env_name: plugin.Form.string().title("青龙变量名").default(spec.defaultEnvName),
+    qinglong_id: plugin.Form.integer().title("青龙容器编号").min(1).default(1).visibleWhen("sync_ql","==",true),
+    env_name: plugin.Form.string().title("青龙变量名").default(spec.defaultEnvName).visibleWhen("sync_ql","==",true),
     tip: plugin.Form.string().title("消息小尾巴").default(""),
     timeout_ms: plugin.Form.integer().title("接口超时毫秒").min(3000).max(120000).default(30000),
   });

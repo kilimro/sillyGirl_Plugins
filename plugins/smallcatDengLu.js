@@ -40,7 +40,7 @@ const pluginConfig = new plugin.Form({
     .title("手动 openid")
     .description("仅手动填写模式生效；多个用逗号、空格或换行分隔；留空读取全部账号")
     .widget("textarea")
-    .default(""),
+    .default("").visibleWhen("account_mode", "==", "manual"),
   login_type: plugin.Form.integer()
     .title("登录类型")
     .description("传给 smallcat createQr/addUser 的 type，默认 1")

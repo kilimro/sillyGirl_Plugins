@@ -662,7 +662,7 @@ const pluginConfig = new plugin.Form({
     .title("手动 openid")
     .description("仅手动填写模式生效；多个用逗号、空格或换行分隔；留空读取全部账号，本插件使用第一个可用账号")
     .widget("textarea")
-    .default(""),
+    .default("").visibleWhen("account_mode", "==", "manual"),
   umid_token: plugin.Form.string()
     .title("固定 bx-umidtoken")
     .description("通常留空自动获取；网络环境取不到 UMID 时可手动填写")
@@ -677,8 +677,8 @@ const pluginConfig = new plugin.Form({
     .title("同步目标")
     .description("青龙/呆呆容器编号会根据后台容器列表动态渲染")
     .default("none"),
-  qinglong_id: plugin.Form.integer().title("青龙面板编号").widget("qinglong-panel").min(1).default(1),
-  daidai_id: plugin.Form.integer().title("呆呆面板编号").widget("daidai-panel").min(1).default(1),
+  qinglong_id: plugin.Form.integer().title("青龙面板编号").widget("qinglong-panel").min(1).default(1).visibleWhen("sync_panel", "==", "qinglong"),
+  daidai_id: plugin.Form.integer().title("呆呆面板编号").widget("daidai-panel").min(1).default(1).visibleWhen("sync_panel", "==", "daidai"),
   ql_env_name: plugin.Form.string().title("环境变量名").default("elmck"),
   ql_remarks: plugin.Form.string().title("变量备注").description("留空时自动使用饿了么账号信息").default(""),
 });
