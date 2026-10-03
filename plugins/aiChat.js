@@ -2,7 +2,7 @@
 // [name: aiChat]
 // [desc: 接入任意 OpenAI 兼容接口的 AI 助手。消息必须以 ai/AI/机器人/小助手 开头才会触发，其他命令走原插件不抢。要改触发词请编辑下方 [rule] 那一行的正则。支持 BaseURL/Key/模型/长系统提示词（变量插值）/上下文轮数/工具调用。]
 // [author: kilimro]
-// [version: v2.1.0]
+// [version: v2.1.1]
 // [rule: ^(ai|起床了绵绵|Ai|机器人|小助手)[，,、:：\s]*[\s\S]*$]
 // [status: true]
 // [admin: false]
@@ -298,19 +298,22 @@ async function main() {
     history.push({ role: "assistant", content: replyText });
     await saveHistory(key, history);
     await s.reply(replyText);
-    // 异步提取记忆，不阻塞回复
+    // 同步提取记忆（await 确保存上）
     if (cfg.enable_memory) {
-      mem
-        .extractFromMessage(promptText, {
+      try {
+        const extracted = await mem.extractFromMessage(promptText, {
           baseUrl: cfg.base_url,
           apiKey: cfg.api_key,
           model: cfg.model,
-          timeout: cfg.timeout,
-        })
-        .then((extracted) => {
-          if (extracted) return mem.upsert(systemVars.platform, userId, extracted.key, extracted.value);
-        })
-        .catch(() => {});
+          timeout: 15000,
+        });
+        if (extracted) {
+          await mem.upsert(systemVars.platform, userId, extracted.key, extracted.value);
+          console.log(`[aiChat] 已自动记住: ${extracted.key}=${extracted.value}`);
+        }
+      } catch (e) {
+        console.log(`[aiChat] 记忆提取失败: ${e?.message || e}`);
+      }
     }
     return;
   } catch (error) {
