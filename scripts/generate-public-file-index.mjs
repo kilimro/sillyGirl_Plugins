@@ -8,7 +8,7 @@ import { format, resolveConfig } from "prettier";
 const root = process.cwd();
 const pluginsDir = path.join(root, "plugins");
 const indexPath = path.join(root, "publicFileIndex.json");
-const repo = process.env.GITHUB_REPOSITORY || "smallfawn/sillyGirl_Plugins";
+const repo = process.env.GITHUB_REPOSITORY || "kilimro/sillyGirl_Plugins";
 const branch = process.env.GITHUB_REF_NAME || "main";
 const repoUrl = `https://github.com/${repo}`;
 const pluginExts = new Set([".js", ".py"]);
