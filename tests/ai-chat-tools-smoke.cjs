@@ -55,9 +55,9 @@ function Form() {
     api_key: "sk-test",
     model: "gpt-4o-mini",
     system_prompt: "你是{nickname}，现在是{now}",
+    trigger_prefix: "ai",
     context_rounds: 5,
     reply_probability: 0,
-    summon_words: "ai,小助手",
     enable_tools: true,
     temperature: 0.8,
     max_tokens: 200,
@@ -78,6 +78,9 @@ const sender = {
   reply: async (text) => {
     replies.push(String(text));
     return text;
+  },
+  resume: async () => {
+    replies.push("__RESUMED__");
   },
   pushAdmin: async () => true,
 };
@@ -132,7 +135,7 @@ global.fetch = async (input, options = {}) => {
   assert.match(replies[0], /12:00:00/, `最终回复应包含工具时间：${replies[0]}`);
 
   // 验证历史被写入 Bucket（用户问 + AI 答）
-  const historyRaw = [...buckets.values()][0]?.get?.("qq:fixture-user") || "";
+  const historyRaw = [...buckets.values()][0]?.get?.("qq:fixture-user:fixture-user") || "";
   const history = JSON.parse(historyRaw);
   assert.equal(history.length, 2);
   assert.equal(history[0].role, "user");

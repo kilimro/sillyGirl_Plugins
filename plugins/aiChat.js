@@ -1,8 +1,8 @@
 // [title: AI 聊天助手]
 // [name: aiChat]
-// [desc: 接入任意 OpenAI 兼容接口的群聊 AI 助手。priority 兜底不抢命令插件；支持自定义 BaseURL、API Key、模型、系统提示词变量插值（时间/昵称/ID）、上下文轮数、群聊概率回复与内置工具；召唤词必回。]
+// [desc: 接入任意 OpenAI 兼容接口的群聊 AI 助手。群聊需以前缀开头才触发（如"ai你好"），否则放行给其他插件；私聊直接聊；上下文按用户隔离；支持 BaseURL/Key/模型/长系统提示词（变量插值）/上下文轮数/工具调用。]
 // [author: kilimro]
-// [version: v1.2.1]
+// [version: v1.3.0]
 // [rule: raw [\s\S]*]
 // [status: true]
 // [admin: false]
@@ -35,22 +35,25 @@ const form = new plugin.Form({
     )
     .widget("textarea")
     .default(ai.DEFAULT_SYSTEM_PROMPT),
+  trigger_prefix: plugin.Form.string()
+    .title("群聊触发前缀（逗号分隔）")
+    .description(
+      "群里消息必须以前缀开头才会触发 AI，例如：ai。私聊不校验前缀直接对话；不匹配前缀的消息会放行给其他插件",
+    )
+    .default("ai")
+    .required(),
   context_rounds: plugin.Form.integer()
     .title("携带上下文轮数")
-    .description("每个会话保留多少轮对话记忆（一轮=一问一答），建议 3-20")
+    .description("每个用户保留多少轮对话记忆（一轮=一问一答），建议 3-20")
     .min(0)
     .max(50)
     .default(10),
   reply_probability: plugin.Form.integer()
-    .title("群聊概率回复百分比")
-    .description("群里不喊召唤词时，每条消息按此概率随机回复，0 表示只在被召唤时才回")
+    .title("群聊随机插话概率（%，默认 0 关闭）")
+    .description("开启后群里不以前缀开头的消息也按此概率随机搭话；0=只在前缀触发时回复")
     .min(0)
     .max(100)
-    .default(30),
-  summon_words: plugin.Form.string()
-    .title("群聊召唤词（逗号分隔）")
-    .description("群聊消息中包含任一召唤词时必回；例如：ai,小助手,机器人")
-    .default("ai,小助手,机器人"),
+    .default(0),
   enable_tools: plugin.Form.boolean()
     .title("启用内置工具（时间/天气/公网IP）")
     .description("开启后 AI 可主动调用工具回答“几点了”“北京天气”“服务器 IP”这类问题")
@@ -64,10 +67,12 @@ const form = new plugin.Form({
 
 const historyStore = new Bucket(HISTORY_BUCKET);
 
+// 上下文按 platform:chatId:userId 隔离——群里每个人各自有自己的记忆
 async function chatKey() {
   const platform = String((await s.getPlatform()) || "unknown");
   const chatId = String((await s.getChatId()) || (await s.getUserId()));
-  return `${platform}:${chatId}`;
+  const userId = String((await s.getUserId()) || "");
+  return `${platform}:${chatId}:${userId}`;
 }
 
 async function loadHistory(key) {
@@ -85,16 +90,26 @@ async function saveHistory(key, history) {
   await historyStore.set(key, JSON.stringify(trimmed));
 }
 
-function parseSummonWords(raw) {
+function parsePrefixes(raw) {
   return String(raw || "")
     .split(/[,，]/)
     .map((w) => w.trim().toLowerCase())
     .filter(Boolean);
 }
 
-function containsSummonWord(text, words) {
-  const lower = String(text || "").toLowerCase();
-  return words.some((w) => lower.includes(w));
+// 去掉消息里的触发前缀，返回真正给大模型看的文本；不匹配返回 null
+function stripPrefix(content, prefixes) {
+  const lower = String(content || "")
+    .trim()
+    .toLowerCase();
+  for (const p of prefixes) {
+    if (!p) continue;
+    if (lower === p) return ""; // 单独发前缀，让用户自己补内容
+    if (lower.startsWith(p)) {
+      return String(content).trim().slice(p.length).trim();
+    }
+  }
+  return null;
 }
 
 function isPrivateChat(chatId, userId) {
@@ -246,53 +261,72 @@ async function handleStatus(key) {
       `模型：${cfg.model}`,
       `BaseURL：${ai.normalizeBaseUrl(cfg.base_url)}`,
       `Key：${masked || "未配置"}`,
+      `触发前缀：${String(cfg.trigger_prefix || "").trim() || "（无）"}`,
       `上下文轮数：${cfg.context_rounds}（当前已存 ${pairs} 轮）`,
-      `群聊概率：${cfg.reply_probability}%`,
-      `召唤词：${String(cfg.summon_words || "").trim() || "（无）"}`,
+      `群聊随机插话：${cfg.reply_probability}%`,
       `内置工具：${cfg.enable_tools ? "开启（" + TOOLS.map((t) => t.function.name).join("、") + "）" : "关闭"}`,
-      "发送「AI清空」可清除当前会话记忆",
+      "发送「AI清空」可清除当前用户的记忆",
     ].join("\n"),
   );
 }
 
 async function handleClear(key) {
   await historyStore.delete(key);
-  return s.reply("已清除当前会话的 AI 记忆");
+  return s.reply("已清除你的 AI 记忆");
 }
 
 let cfg = {};
 
 async function main() {
   cfg = (await form.get()) || {};
-  const content = String((await s.getMsg()) || "").trim();
-  if (!content) return;
+  const rawContent = String((await s.getMsg()) || "").trim();
+  if (!rawContent) return;
 
   const key = await chatKey();
   const userId = String((await s.getUserId()) || "");
   const chatId = String((await s.getChatId()) || "");
   const privateChat = isPrivateChat(chatId, userId);
 
-  if (content === "AI状态" || content === "ai状态") return handleStatus(key);
-  if (content === "AI清空" || content === "ai清空" || content === "忘记") return handleClear(key);
+  // 管理指令：不校验前缀，直接响应
+  if (rawContent === "AI状态" || rawContent === "ai状态") return handleStatus(key);
+  if (rawContent === "AI清空" || rawContent === "ai清空" || rawContent === "忘记") return handleClear(key);
 
   if (!String(cfg.api_key || "").trim()) return;
-
   if (privateChat && !cfg.enable_private) return;
   if (!privateChat && !cfg.enable_group) return;
 
-  const words = parseSummonWords(cfg.summon_words);
-  const summoned = containsSummonWord(content, words);
+  const prefixes = parsePrefixes(cfg.trigger_prefix);
+  let promptText;
+  let shouldResume = false;
 
-  let shouldReply = privateChat;
-  if (!privateChat) {
-    if (summoned) shouldReply = true;
-    else if (content.length <= 6) shouldReply = false;
-    else {
+  if (privateChat) {
+    // 私聊：直接对话，不需要前缀
+    promptText = rawContent;
+  } else {
+    // 群聊：必须以前缀开头才触发 AI
+    promptText = stripPrefix(rawContent, prefixes);
+    if (promptText === null) {
+      // 不以前缀开头：要么按随机概率插话，要么放行给其他插件
       const probability = Math.max(0, Math.min(100, Number(cfg.reply_probability) || 0));
-      shouldReply = Math.random() * 100 < probability;
+      if (probability > 0 && Math.random() * 100 < probability) {
+        promptText = rawContent; // 随机插话，用原文
+      } else {
+        shouldResume = true; // 放行
+      }
     }
   }
-  if (!shouldReply) return;
+
+  if (shouldResume) {
+    // 让 SillyGirl 继续把这条消息分发给后面的插件（签到/查询等）
+    if (typeof s.resume === "function") {
+      try {
+        await s.resume();
+      } catch (_) {}
+    }
+    return;
+  }
+
+  if (!promptText) return; // 只发了个前缀，等用户补内容
 
   const now = new Date();
   const weekdays = ["日", "一", "二", "三", "四", "五", "六"];
@@ -309,11 +343,11 @@ async function main() {
   try {
     history = await loadHistory(key);
     const systemPrompt = renderPrompt(cfg.system_prompt, systemVars);
-    const messages = ai.buildMessages(systemPrompt, history, content);
+    const messages = ai.buildMessages(systemPrompt, history, promptText);
     const result = await chatWithTools(messages);
     const replyText = clampReply(result.content);
     if (!replyText) return;
-    history.push({ role: "user", content });
+    history.push({ role: "user", content: promptText });
     history.push({ role: "assistant", content: replyText });
     await saveHistory(key, history);
     return s.reply(replyText);
