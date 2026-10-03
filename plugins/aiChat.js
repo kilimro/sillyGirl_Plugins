@@ -222,7 +222,6 @@ async function chatWithTools(messages) {
 async function handleStatus(key) {
   const history = await loadHistory(key);
   const pairs = Math.floor(history.length / 2);
-  const masked = ai.maskKey(cfg.api_key);
   return s.reply(
     [
       "===== AI 助手状态 =====",
