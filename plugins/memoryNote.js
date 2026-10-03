@@ -1,9 +1,10 @@
 // [title: 我的记忆]
 // [name: memoryNote]
-// [desc: 查看/管理 AI 自动记住的关于你的信息。私聊群聊均可，只能看自己的；AI 聊天时提到的个人信息会自动记下。]
+// [desc: 查看/管理 AI 记住的关于你的信息。私聊群聊均可，只能看自己的；AI 聊天时提到的个人信息会自动记下，也可手动「记一下XX是XX」。]
 // [author: kilimro]
-// [version: v1.0.0]
+// [version: v1.1.0]
 // [rule: ^(?:我的记忆|查看我的记忆|记忆列表|记忆)$]
+// [rule: ^(?:记一下|记下).+$]
 // [rule: ^忘记我的.+$]
 // [rule: ^清空我的记忆$]
 // [status: true]
@@ -23,16 +24,35 @@ async function main() {
   const platform = String((await s.getPlatform()) || "unknown");
   const userId = String((await s.getUserId()) || "");
 
+  // 手动添加：记一下XX是XX / 记下XX=XX
+  const addMatch = content.match(/^(?:记一下|记下)(.+)$/);
+  if (addMatch) {
+    const raw = addMatch[1].trim();
+    // 尝试拆 key/value：生日=1990-01-01 / 生日：1990 / 生日是1990
+    const kv = raw.match(/^(.+?)[是:=：]\s*(.+)$/);
+    let key, value;
+    if (kv) {
+      key = kv[1].trim();
+      value = kv[2].trim();
+    } else {
+      key = "备注";
+      value = raw;
+    }
+    if (!value) return s.reply("内容不能为空");
+    await mem.upsert(platform, userId, key, value);
+    return s.reply(`✅ 已记住：${key} = ${value}`);
+  }
+
   if (/^(?:我的记忆|查看我的记忆|记忆列表|记忆)$/.test(content)) {
     const list = await mem.list(platform, userId);
     if (!list.length) {
       return s.reply(
-        "我还没记住关于你的任何信息。\n你跟 AI 聊天时提到的个人信息（生日、名字、喜好等）我会自动记下，下次直接问我就行。",
+        "我还没记住关于你的任何信息。\n你跟 AI 聊天时提到的个人信息（生日、名字、喜好等）会自动记下，也可以直接发「记一下生日是1990-01-01」手动添加。",
       );
     }
     const lines = list.map((m, i) => `${i + 1}. ${m.key}：${m.value}`);
     return s.reply(
-      `📝 我记住的关于你的信息（${list.length} 条）：\n${lines.join("\n")}\n\n发送「忘记我的XX」删除单条，「清空我的记忆」全部删除`,
+      `📝 我记住的关于你的信息（${list.length} 条）：\n${lines.join("\n")}\n\n发送「记一下XX是XX」添加，「忘记我的XX」删除单条，「清空我的记忆」全部删除`,
     );
   }
 
