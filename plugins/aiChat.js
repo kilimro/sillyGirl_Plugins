@@ -1,8 +1,8 @@
 // [title: AI 聊天助手]
 // [name: aiChat]
-// [desc: 接入任意 OpenAI 兼容接口的群聊 AI 助手。支持自定义 BaseURL、API Key、模型、系统提示词、上下文轮数、群聊概率回复与内置工具（时间/天气/公网 IP）；@或召唤词必回。]
+// [desc: 接入任意 OpenAI 兼容接口的群聊 AI 助手。支持自定义 BaseURL、API Key、模型、系统提示词变量插值（时间/昵称/ID）、上下文轮数、群聊概率回复与内置工具；召唤词必回，命令黑名单防插嘴。]
 // [author: kilimro]
-// [version: v1.1.0]
+// [version: v1.2.0]
 // [rule: raw [\s\S]*]
 // [status: true]
 // [admin: false]
@@ -20,6 +20,50 @@ const HISTORY_BUCKET = "openai_chat_history";
 const MAX_CONTENT_LEN = 1500;
 const MAX_TOOL_ROUNDS = 4;
 
+const DEFAULT_BLACKLIST = [
+  "登录",
+  "登陆",
+  "签到",
+  "查询",
+  "管理",
+  "授权",
+  "清理",
+  "教程",
+  "状态",
+  "版本",
+  "时间",
+  "我是谁",
+  "更新",
+  "升级",
+  "重启",
+  "绑定",
+  "解绑",
+  "领取",
+  "抽奖",
+  "余额",
+  "资产",
+  "京豆",
+  "农场",
+  "助力",
+  "浇水",
+  "红包",
+  "早报",
+  "金价",
+  "汇率",
+  "油价",
+  "快递",
+  "查券",
+  "cookie",
+  "pt_key",
+  "pt_pin",
+  "扫码",
+  "刷新",
+  "检测",
+  "导出",
+  "同步",
+  "开关",
+];
+
 const form = new plugin.Form({
   base_url: plugin.Form.string()
     .title("OpenAI 兼容 BaseURL")
@@ -30,7 +74,9 @@ const form = new plugin.Form({
   model: plugin.Form.string().title("模型名").default(ai.DEFAULT_MODEL).required(),
   system_prompt: plugin.Form.string()
     .title("系统提示词（人设）")
-    .description("支持多行。定义 AI 的性格、口吻、行为边界")
+    .description(
+      "支持多行。可用变量：{now} 当前时间、{date} 日期、{weekday} 星期、{nickname} 对方昵称、{user_id} 对方ID、{platform} 平台",
+    )
     .widget("textarea")
     .default(ai.DEFAULT_SYSTEM_PROMPT),
   context_rounds: plugin.Form.integer()
@@ -41,7 +87,7 @@ const form = new plugin.Form({
     .default(10),
   reply_probability: plugin.Form.integer()
     .title("群聊概率回复百分比")
-    .description("群里不 @/不喊召唤词时，每条消息按此概率随机回复，0 表示只在被召唤时才回")
+    .description("群里不喊召唤词时，每条消息按此概率随机回复，0 表示只在被召唤时才回")
     .min(0)
     .max(100)
     .default(30),
@@ -49,6 +95,11 @@ const form = new plugin.Form({
     .title("群聊召唤词（逗号分隔）")
     .description("群聊消息中包含任一召唤词时必回；例如：ai,小助手,机器人")
     .default("ai,小助手,机器人"),
+  command_blacklist: plugin.Form.string()
+    .title("命令黑名单（逗号分隔，命中则 AI 不插嘴）")
+    .description("消息中包含这些词时视为其他插件命令，AI 直接跳过不回复；防止和签到/查询类插件冲突")
+    .widget("textarea")
+    .default(DEFAULT_BLACKLIST.join(",")),
   enable_tools: plugin.Form.boolean()
     .title("启用内置工具（时间/天气/公网IP）")
     .description("开启后 AI 可主动调用工具回答“几点了”“北京天气”“服务器 IP”这类问题")
@@ -95,6 +146,18 @@ function containsSummonWord(text, words) {
   return words.some((w) => lower.includes(w));
 }
 
+function parseBlacklist(raw) {
+  return String(raw || "")
+    .split(/[,，]/)
+    .map((w) => w.trim().toLowerCase())
+    .filter(Boolean);
+}
+
+function hitsBlacklist(text, words) {
+  const lower = String(text || "").toLowerCase();
+  return words.some((w) => lower.includes(w));
+}
+
 function isPrivateChat(chatId, userId) {
   return !chatId || String(chatId) === String(userId);
 }
@@ -103,6 +166,23 @@ function clampReply(text) {
   let out = String(text || "").trim();
   if (out.length > MAX_CONTENT_LEN) out = `${out.slice(0, MAX_CONTENT_LEN)}…`;
   return out;
+}
+
+async function getNickname() {
+  try {
+    if (typeof s.getUserName === "function") return String(await s.getUserName());
+  } catch (_) {}
+  try {
+    if (typeof s.getNickname === "function") return String(await s.getNickname());
+  } catch (_) {}
+  return "群友";
+}
+
+function renderPrompt(template, vars) {
+  return String(template || "").replace(/\{(\w+)\}/g, (_, key) => {
+    const value = vars[key];
+    return value === undefined || value === null ? `{${key}}` : String(value);
+  });
 }
 
 // ===== 工具注册表（OpenAI function calling）=====
@@ -230,6 +310,12 @@ async function handleStatus(key) {
       `上下文轮数：${cfg.context_rounds}（当前已存 ${pairs} 轮）`,
       `群聊概率：${cfg.reply_probability}%`,
       `召唤词：${String(cfg.summon_words || "").trim() || "（无）"}`,
+      `命令黑名单：${
+        String(cfg.command_blacklist || "")
+          .trim()
+          .split(/[,，]/)
+          .filter(Boolean).length
+      } 个词`,
       `内置工具：${cfg.enable_tools ? "开启（" + TOOLS.map((t) => t.function.name).join("、") + "）" : "关闭"}`,
       "发送「AI清空」可清除当前会话记忆",
     ].join("\n"),
@@ -261,10 +347,16 @@ async function main() {
   if (privateChat && !cfg.enable_private) return;
   if (!privateChat && !cfg.enable_group) return;
 
+  const blacklist = parseBlacklist(cfg.command_blacklist);
+  const words = parseSummonWords(cfg.summon_words);
+  const summoned = containsSummonWord(content, words);
+
+  // 命中命令黑名单：不插嘴，让原插件处理（无论群聊私聊）
+  if (!summoned && hitsBlacklist(content, blacklist)) return;
+
   let shouldReply = privateChat;
   if (!privateChat) {
-    const words = parseSummonWords(cfg.summon_words);
-    if (containsSummonWord(content, words)) shouldReply = true;
+    if (summoned) shouldReply = true;
     else if (content.length <= 6) shouldReply = false;
     else {
       const probability = Math.max(0, Math.min(100, Number(cfg.reply_probability) || 0));
@@ -273,10 +365,22 @@ async function main() {
   }
   if (!shouldReply) return;
 
+  const now = new Date();
+  const weekdays = ["日", "一", "二", "三", "四", "五", "六"];
+  const systemVars = {
+    now: `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}:${String(now.getSeconds()).padStart(2, "0")}`,
+    date: `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`,
+    weekday: `星期${weekdays[now.getDay()]}`,
+    nickname: await getNickname(),
+    user_id: userId,
+    platform: String(await s.getPlatform()),
+  };
+
   let history;
   try {
     history = await loadHistory(key);
-    const messages = ai.buildMessages(cfg.system_prompt, history, content);
+    const systemPrompt = renderPrompt(cfg.system_prompt, systemVars);
+    const messages = ai.buildMessages(systemPrompt, history, content);
     const result = await chatWithTools(messages);
     const replyText = clampReply(result.content);
     if (!replyText) return;

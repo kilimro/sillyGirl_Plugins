@@ -54,10 +54,11 @@ function Form() {
     base_url: "https://api.example.com/v1",
     api_key: "sk-test",
     model: "gpt-4o-mini",
-    system_prompt: "你是助手",
+    system_prompt: "你是{nickname}，现在是{now}",
     context_rounds: 5,
     reply_probability: 0,
     summon_words: "ai,小助手",
+    command_blacklist: "",
     enable_tools: true,
     temperature: 0.8,
     max_tokens: 200,
@@ -73,6 +74,7 @@ const sender = {
   getUserId: async () => "fixture-user",
   getChatId: async () => "",
   getPlatform: async () => "qq",
+  getUserName: async () => "测试用户",
   isAdmin: async () => false,
   reply: async (text) => {
     replies.push(String(text));
