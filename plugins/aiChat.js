@@ -1,9 +1,9 @@
 // [title: AI 聊天助手]
 // [name: aiChat]
-// [desc: 接入任意 OpenAI 兼容接口的群聊 AI 助手。群聊需以前缀开头才触发（如"ai你好"），否则放行给其他插件；私聊直接聊；上下文按用户隔离；支持 BaseURL/Key/模型/长系统提示词（变量插值）/上下文轮数/工具调用。]
+// [desc: 接入任意 OpenAI 兼容接口的 AI 助手。消息必须以 ai/AI/机器人/小助手 开头才会触发，其他命令走原插件不抢。要改触发词请编辑下方 [rule] 那一行的正则。支持 BaseURL/Key/模型/长系统提示词（变量插值）/上下文轮数/工具调用。]
 // [author: kilimro]
-// [version: v1.3.0]
-// [rule: raw [\s\S]*]
+// [version: v1.4.0]
+// [rule: ^(ai|AI|Ai|机器人|小助手)[，,、:：\s]*[\s\S]*$]
 // [status: true]
 // [admin: false]
 // [public: true]
@@ -20,6 +20,9 @@ const HISTORY_BUCKET = "openai_chat_history";
 const MAX_CONTENT_LEN = 1500;
 const MAX_TOOL_ROUNDS = 4;
 
+// 剥掉消息开头的触发词（ai/AI/机器人/小助手）和紧跟的分隔符，返回真正给大模型的文本
+const PREFIX_RE = /^\s*(?:ai|AI|Ai|机器人|小助手)[，,、:：\s]*/;
+
 const form = new plugin.Form({
   base_url: plugin.Form.string()
     .title("OpenAI 兼容 BaseURL")
@@ -35,25 +38,12 @@ const form = new plugin.Form({
     )
     .widget("textarea")
     .default(ai.DEFAULT_SYSTEM_PROMPT),
-  trigger_prefix: plugin.Form.string()
-    .title("群聊触发前缀（逗号分隔）")
-    .description(
-      "群里消息必须以前缀开头才会触发 AI，例如：ai。私聊不校验前缀直接对话；不匹配前缀的消息会放行给其他插件",
-    )
-    .default("ai")
-    .required(),
   context_rounds: plugin.Form.integer()
     .title("携带上下文轮数")
     .description("每个用户保留多少轮对话记忆（一轮=一问一答），建议 3-20")
     .min(0)
     .max(50)
     .default(10),
-  reply_probability: plugin.Form.integer()
-    .title("群聊随机插话概率（%，默认 0 关闭）")
-    .description("开启后群里不以前缀开头的消息也按此概率随机搭话；0=只在前缀触发时回复")
-    .min(0)
-    .max(100)
-    .default(0),
   enable_tools: plugin.Form.boolean()
     .title("启用内置工具（时间/天气/公网IP）")
     .description("开启后 AI 可主动调用工具回答“几点了”“北京天气”“服务器 IP”这类问题")
@@ -67,7 +57,7 @@ const form = new plugin.Form({
 
 const historyStore = new Bucket(HISTORY_BUCKET);
 
-// 上下文按 platform:chatId:userId 隔离——群里每个人各自有自己的记忆
+// 上下文按 platform:chatId:userId 隔离——每个人各自有自己的记忆
 async function chatKey() {
   const platform = String((await s.getPlatform()) || "unknown");
   const chatId = String((await s.getChatId()) || (await s.getUserId()));
@@ -88,28 +78,6 @@ async function loadHistory(key) {
 async function saveHistory(key, history) {
   const trimmed = history.slice(-(Number(cfg.context_rounds) * 2 + 2));
   await historyStore.set(key, JSON.stringify(trimmed));
-}
-
-function parsePrefixes(raw) {
-  return String(raw || "")
-    .split(/[,，]/)
-    .map((w) => w.trim().toLowerCase())
-    .filter(Boolean);
-}
-
-// 去掉消息里的触发前缀，返回真正给大模型看的文本；不匹配返回 null
-function stripPrefix(content, prefixes) {
-  const lower = String(content || "")
-    .trim()
-    .toLowerCase();
-  for (const p of prefixes) {
-    if (!p) continue;
-    if (lower === p) return ""; // 单独发前缀，让用户自己补内容
-    if (lower.startsWith(p)) {
-      return String(content).trim().slice(p.length).trim();
-    }
-  }
-  return null;
 }
 
 function isPrivateChat(chatId, userId) {
@@ -261,11 +229,9 @@ async function handleStatus(key) {
       `模型：${cfg.model}`,
       `BaseURL：${ai.normalizeBaseUrl(cfg.base_url)}`,
       `Key：${masked || "未配置"}`,
-      `触发前缀：${String(cfg.trigger_prefix || "").trim() || "（无）"}`,
       `上下文轮数：${cfg.context_rounds}（当前已存 ${pairs} 轮）`,
-      `群聊随机插话：${cfg.reply_probability}%`,
       `内置工具：${cfg.enable_tools ? "开启（" + TOOLS.map((t) => t.function.name).join("、") + "）" : "关闭"}`,
-      "发送「AI清空」可清除当前用户的记忆",
+      "发送「ai清空」可清除你的记忆",
     ].join("\n"),
   );
 }
@@ -287,46 +253,17 @@ async function main() {
   const chatId = String((await s.getChatId()) || "");
   const privateChat = isPrivateChat(chatId, userId);
 
-  // 管理指令：不校验前缀，直接响应
-  if (rawContent === "AI状态" || rawContent === "ai状态") return handleStatus(key);
-  if (rawContent === "AI清空" || rawContent === "ai清空" || rawContent === "忘记") return handleClear(key);
+  // rule 已经过滤了：能走到这里说明消息一定是 ai/AI/机器人/小助手 开头
+  let promptText = rawContent.replace(PREFIX_RE, "").trim();
+
+  // 管理指令
+  if (promptText === "状态") return handleStatus(key);
+  if (promptText === "清空" || promptText === "忘记") return handleClear(key);
 
   if (!String(cfg.api_key || "").trim()) return;
   if (privateChat && !cfg.enable_private) return;
   if (!privateChat && !cfg.enable_group) return;
-
-  const prefixes = parsePrefixes(cfg.trigger_prefix);
-  let promptText;
-  let shouldResume = false;
-
-  if (privateChat) {
-    // 私聊：直接对话，不需要前缀
-    promptText = rawContent;
-  } else {
-    // 群聊：必须以前缀开头才触发 AI
-    promptText = stripPrefix(rawContent, prefixes);
-    if (promptText === null) {
-      // 不以前缀开头：要么按随机概率插话，要么放行给其他插件
-      const probability = Math.max(0, Math.min(100, Number(cfg.reply_probability) || 0));
-      if (probability > 0 && Math.random() * 100 < probability) {
-        promptText = rawContent; // 随机插话，用原文
-      } else {
-        shouldResume = true; // 放行
-      }
-    }
-  }
-
-  if (shouldResume) {
-    // 让 SillyGirl 继续把这条消息分发给后面的插件（签到/查询等）
-    if (typeof s.resume === "function") {
-      try {
-        await s.resume();
-      } catch (_) {}
-    }
-    return;
-  }
-
-  if (!promptText) return; // 只发了个前缀，等用户补内容
+  if (!promptText) return; // 只发了个"ai"，等用户补内容
 
   const now = new Date();
   const weekdays = ["日", "一", "二", "三", "四", "五", "六"];
