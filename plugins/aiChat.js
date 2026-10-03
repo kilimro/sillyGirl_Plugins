@@ -2,7 +2,7 @@
 // [name: aiChat]
 // [desc: 接入任意 OpenAI 兼容接口的 AI 助手。消息必须以 ai/AI/机器人/小助手 开头才会触发，其他命令走原插件不抢。要改触发词请编辑下方 [rule] 那一行的正则。支持 BaseURL/Key/模型/长系统提示词（变量插值）/上下文轮数/工具调用。]
 // [author: kilimro]
-// [version: v2.0.0]
+// [version: v2.1.0]
 // [rule: ^(ai|起床了绵绵|Ai|机器人|小助手)[，,、:：\s]*[\s\S]*$]
 // [status: true]
 // [admin: false]
@@ -11,10 +11,11 @@
 // [class: 大模型]
 // [icon: https://ecmb.bdimg.com/tam-ogel/-341441530_114552854_88_88.png]
 // [origin: 自定义]
-// [depe: ["./openaiChatCore.js"]]
+// [depe: ["./memoryCore.js","./openaiChatCore.js"]]
 
 const { sender: s, Bucket, plugin } = require("sillygirl");
 const ai = require("./openaiChatCore.js");
+const mem = require("./memoryCore.js");
 
 const HISTORY_BUCKET = "openai_chat_history";
 const MAX_CONTENT_LEN = 1500;
@@ -47,6 +48,12 @@ const form = new plugin.Form({
   enable_tools: plugin.Form.boolean()
     .title("启用内置工具（时间/天气/公网IP）")
     .description("开启后 AI 可主动调用工具回答“几点了”“北京天气”“服务器 IP”这类问题")
+    .default(true),
+  enable_memory: plugin.Form.boolean()
+    .title("启用长期记忆（自动记住用户个人信息）")
+    .description(
+      "开启后 AI 会自动从对话中提取生日、名字、喜好等信息并记住，下次对话自动带入；用户发送「我的记忆」可查看",
+    )
     .default(true),
   temperature: plugin.Form.number().title("Temperature").min(0).max(2).default(0.8),
   max_tokens: plugin.Form.integer().title("单次回复最大 Token").min(64).max(4096).default(800),
@@ -277,14 +284,35 @@ async function main() {
   try {
     history = await loadHistory(key);
     const systemPrompt = renderPrompt(cfg.system_prompt, systemVars);
-    const messages = ai.buildMessages(systemPrompt, history, promptText);
+    // 注入用户长期记忆
+    let finalSystemPrompt = systemPrompt;
+    if (cfg.enable_memory) {
+      const memList = await mem.list(systemVars.platform, userId);
+      finalSystemPrompt += mem.formatContext(memList);
+    }
+    const messages = ai.buildMessages(finalSystemPrompt, history, promptText);
     const result = await chatWithTools(messages);
     const replyText = clampReply(result.content);
     if (!replyText) return;
     history.push({ role: "user", content: promptText });
     history.push({ role: "assistant", content: replyText });
     await saveHistory(key, history);
-    return s.reply(replyText);
+    await s.reply(replyText);
+    // 异步提取记忆，不阻塞回复
+    if (cfg.enable_memory) {
+      mem
+        .extractFromMessage(promptText, {
+          baseUrl: cfg.base_url,
+          apiKey: cfg.api_key,
+          model: cfg.model,
+          timeout: cfg.timeout,
+        })
+        .then((extracted) => {
+          if (extracted) return mem.upsert(systemVars.platform, userId, extracted.key, extracted.value);
+        })
+        .catch(() => {});
+    }
+    return;
   } catch (error) {
     await s.reply(`AI 暂时摸鱼了：${String(error?.message || error).slice(0, 200)}`);
   }
