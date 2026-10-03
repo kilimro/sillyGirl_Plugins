@@ -9,7 +9,7 @@
     "lint": "eslint plugins scripts tests",
     "metadata:check": "node scripts/normalize-plugin-metadata.mjs && node scripts/update-plugin-dependencies.mjs --check && node scripts/audit-plugin-metadata.mjs",
     "index": "node scripts/generate-public-file-index.mjs",
-    "test:runtime": "node tests/shared-runtime-smoke.cjs && node tests/jd-runtime-smoke.cjs",
+    "test:runtime": "node tests/shared-runtime-smoke.cjs && node tests/jd-runtime-smoke.cjs && node tests/openai-chat-smoke.cjs && node tests/ai-chat-tools-smoke.cjs",
     "verify": "npm run format:check && npm run lint && npm run metadata:check && npm run test:runtime"
   },
   "devDependencies": {
