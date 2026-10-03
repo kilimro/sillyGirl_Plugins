@@ -2,7 +2,7 @@
 // [name: memoryCore]
 // [desc: 用户记忆存储与 AI 提取公共模块，供 aiChat 和 memoryNote 共用]
 // [author: kilimro]
-// [version: v1.0.0]
+// [version: v1.0.1]
 // [status: true]
 // [admin: false]
 // [public: true]
@@ -39,27 +39,27 @@ async function upsert(platform, userId, key, value) {
   const k = String(key || "").trim();
   const v = String(value || "").trim();
   if (!k || !v) return false;
-  const list = await list(platform, userId);
+  const items = await list(platform, userId);
   const now = new Date().toISOString();
-  const idx = list.findIndex((m) => m.key === k);
+  const idx = items.findIndex((m) => m.key === k);
   if (idx >= 0) {
-    list[idx].value = v;
-    list[idx].updatedAt = now;
+    items[idx].value = v;
+    items[idx].updatedAt = now;
   } else {
-    list.push({ key: k, value: v, updatedAt: now });
+    items.push({ key: k, value: v, updatedAt: now });
   }
   const db = await getBucket();
-  await db.set(bucketKey(platform, userId), JSON.stringify(list));
+  await db.set(bucketKey(platform, userId), JSON.stringify(items));
   return true;
 }
 
 async function remove(platform, userId, key) {
   const k = String(key || "").trim();
-  const list = await list(platform, userId);
-  const filtered = list.filter((m) => m.key !== k);
+  const items = await list(platform, userId);
+  const filtered = items.filter((m) => m.key !== k);
   const db = await getBucket();
   await db.set(bucketKey(platform, userId), JSON.stringify(filtered));
-  return list.length - filtered.length;
+  return items.length - filtered.length;
 }
 
 async function clear(platform, userId) {
