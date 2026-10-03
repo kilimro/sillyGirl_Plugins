@@ -1,13 +1,13 @@
 // [title: AI 聊天助手]
 // [name: aiChat]
-// [desc: 接入任意 OpenAI 兼容接口的群聊 AI 助手。支持自定义 BaseURL、API Key、模型、系统提示词变量插值（时间/昵称/ID）、上下文轮数、群聊概率回复与内置工具；召唤词必回，命令黑名单防插嘴。]
+// [desc: 接入任意 OpenAI 兼容接口的群聊 AI 助手。priority 兜底不抢命令插件；支持自定义 BaseURL、API Key、模型、系统提示词变量插值（时间/昵称/ID）、上下文轮数、群聊概率回复与内置工具；召唤词必回。]
 // [author: kilimro]
-// [version: v1.2.0]
+// [version: v1.2.1]
 // [rule: raw [\s\S]*]
 // [status: true]
 // [admin: false]
 // [public: true]
-// [priority: 0]
+// [priority: 999999999]
 // [class: 工具]
 // [icon: https://www.oppo.com/content/dam/oppo_com/oppo/product-asset-library/reno/reno16-series/cn/reno16/assets/images-design-c2-icon-1-1-80c8ba.png.webp]
 // [origin: 自定义]
@@ -19,50 +19,6 @@ const ai = require("./openaiChatCore.js");
 const HISTORY_BUCKET = "openai_chat_history";
 const MAX_CONTENT_LEN = 1500;
 const MAX_TOOL_ROUNDS = 4;
-
-const DEFAULT_BLACKLIST = [
-  "登录",
-  "登陆",
-  "签到",
-  "查询",
-  "管理",
-  "授权",
-  "清理",
-  "教程",
-  "状态",
-  "版本",
-  "时间",
-  "我是谁",
-  "更新",
-  "升级",
-  "重启",
-  "绑定",
-  "解绑",
-  "领取",
-  "抽奖",
-  "余额",
-  "资产",
-  "京豆",
-  "农场",
-  "助力",
-  "浇水",
-  "红包",
-  "早报",
-  "金价",
-  "汇率",
-  "油价",
-  "快递",
-  "查券",
-  "cookie",
-  "pt_key",
-  "pt_pin",
-  "扫码",
-  "刷新",
-  "检测",
-  "导出",
-  "同步",
-  "开关",
-];
 
 const form = new plugin.Form({
   base_url: plugin.Form.string()
@@ -95,11 +51,6 @@ const form = new plugin.Form({
     .title("群聊召唤词（逗号分隔）")
     .description("群聊消息中包含任一召唤词时必回；例如：ai,小助手,机器人")
     .default("ai,小助手,机器人"),
-  command_blacklist: plugin.Form.string()
-    .title("命令黑名单（逗号分隔，命中则 AI 不插嘴）")
-    .description("消息中包含这些词时视为其他插件命令，AI 直接跳过不回复；防止和签到/查询类插件冲突")
-    .widget("textarea")
-    .default(DEFAULT_BLACKLIST.join(",")),
   enable_tools: plugin.Form.boolean()
     .title("启用内置工具（时间/天气/公网IP）")
     .description("开启后 AI 可主动调用工具回答“几点了”“北京天气”“服务器 IP”这类问题")
@@ -142,18 +93,6 @@ function parseSummonWords(raw) {
 }
 
 function containsSummonWord(text, words) {
-  const lower = String(text || "").toLowerCase();
-  return words.some((w) => lower.includes(w));
-}
-
-function parseBlacklist(raw) {
-  return String(raw || "")
-    .split(/[,，]/)
-    .map((w) => w.trim().toLowerCase())
-    .filter(Boolean);
-}
-
-function hitsBlacklist(text, words) {
   const lower = String(text || "").toLowerCase();
   return words.some((w) => lower.includes(w));
 }
@@ -310,12 +249,6 @@ async function handleStatus(key) {
       `上下文轮数：${cfg.context_rounds}（当前已存 ${pairs} 轮）`,
       `群聊概率：${cfg.reply_probability}%`,
       `召唤词：${String(cfg.summon_words || "").trim() || "（无）"}`,
-      `命令黑名单：${
-        String(cfg.command_blacklist || "")
-          .trim()
-          .split(/[,，]/)
-          .filter(Boolean).length
-      } 个词`,
       `内置工具：${cfg.enable_tools ? "开启（" + TOOLS.map((t) => t.function.name).join("、") + "）" : "关闭"}`,
       "发送「AI清空」可清除当前会话记忆",
     ].join("\n"),
@@ -347,12 +280,8 @@ async function main() {
   if (privateChat && !cfg.enable_private) return;
   if (!privateChat && !cfg.enable_group) return;
 
-  const blacklist = parseBlacklist(cfg.command_blacklist);
   const words = parseSummonWords(cfg.summon_words);
   const summoned = containsSummonWord(content, words);
-
-  // 命中命令黑名单：不插嘴，让原插件处理（无论群聊私聊）
-  if (!summoned && hitsBlacklist(content, blacklist)) return;
 
   let shouldReply = privateChat;
   if (!privateChat) {

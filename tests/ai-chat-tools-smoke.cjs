@@ -58,7 +58,6 @@ function Form() {
     context_rounds: 5,
     reply_probability: 0,
     summon_words: "ai,小助手",
-    command_blacklist: "",
     enable_tools: true,
     temperature: 0.8,
     max_tokens: 200,
