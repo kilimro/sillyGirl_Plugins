@@ -2,14 +2,14 @@
 // [name: aiChat]
 // [desc: 接入任意 OpenAI 兼容接口的 AI 助手。消息必须以 ai/AI/机器人/小助手 开头才会触发，其他命令走原插件不抢。要改触发词请编辑下方 [rule] 那一行的正则。支持 BaseURL/Key/模型/长系统提示词（变量插值）/上下文轮数/工具调用。]
 // [author: kilimro]
-// [version: v1.4.0]
-// [rule: ^(ai|AI|Ai|机器人|小助手)[，,、:：\s]*[\s\S]*$]
+// [version: v1.4.1]
+// [rule: ^(ai|起床了绵绵|Ai|机器人|小助手)[，,、:：\s]*[\s\S]*$]
 // [status: true]
 // [admin: false]
 // [public: true]
-// [priority: 999999999]
-// [class: 工具]
-// [icon: https://www.oppo.com/content/dam/oppo_com/oppo/product-asset-library/reno/reno16-series/cn/reno16/assets/images-design-c2-icon-1-1-80c8ba.png.webp]
+// [priority: 999]
+// [class: 大模型]
+// [icon: https://ecmb.bdimg.com/tam-ogel/-341441530_114552854_88_88.png]
 // [origin: 自定义]
 // [depe: ["./openaiChatCore.js"]]
 
@@ -21,7 +21,7 @@ const MAX_CONTENT_LEN = 1500;
 const MAX_TOOL_ROUNDS = 4;
 
 // 剥掉消息开头的触发词（ai/AI/机器人/小助手）和紧跟的分隔符，返回真正给大模型的文本
-const PREFIX_RE = /^\s*(?:ai|AI|Ai|机器人|小助手)[，,、:：\s]*/;
+const PREFIX_RE = /^\s*(?:ai|起床了绵绵|Ai|机器人|小助手)[，,、:：\s]*/;
 
 const form = new plugin.Form({
   base_url: plugin.Form.string()
@@ -227,8 +227,6 @@ async function handleStatus(key) {
     [
       "===== AI 助手状态 =====",
       `模型：${cfg.model}`,
-      `BaseURL：${ai.normalizeBaseUrl(cfg.base_url)}`,
-      `Key：${masked || "未配置"}`,
       `上下文轮数：${cfg.context_rounds}（当前已存 ${pairs} 轮）`,
       `内置工具：${cfg.enable_tools ? "开启（" + TOOLS.map((t) => t.function.name).join("、") + "）" : "关闭"}`,
       "发送「ai清空」可清除你的记忆",
