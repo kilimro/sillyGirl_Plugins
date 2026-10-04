@@ -10,7 +10,7 @@
 // [public: true]
 // [priority: 0]
 // [class: 工具]
-// [icon: https://cdn.jsdelivr.net/npm/@tabler/icons@latest/icons/puzzle.svg]
+// [icon: https://wiki.920pdd.com/uploads/avatars/2024/12/01//fwUbpklrVjbmOWJz.png]
 // [origin: backup/携趣代理_v4_By.funyhook.py;backup/携趣加白-头子专用_v1.0.3_By.960342874.py;backup/星空加白云端版_v1.0.0_By.rujingxianghai.py;backup/星空代理加白合租_v8.6_By.qingge.js;backup/豆芽加白_v0.0.3_By.qingge.txt;backup/自用插件_v0.1.2_By.qingge.txt]
 // [depe: []]
 

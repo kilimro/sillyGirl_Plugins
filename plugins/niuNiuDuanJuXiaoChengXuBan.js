@@ -10,7 +10,7 @@
 // [public: true]
 // [priority: 99999999]
 // [class: 工具类]
-// [icon: https://cdn.jsdelivr.net/npm/@tabler/icons@latest/icons/puzzle.svg]
+// [icon: https://wiki.920pdd.com/uploads/avatars/2024/12/01//fwUbpklrVjbmOWJz.png]
 // [origin: backup/m109_小程序牛牛短剧_v1.0.0_By.mrconli.py]
 // [depe: ["./mrconliAccountRuntime.js"]]
 

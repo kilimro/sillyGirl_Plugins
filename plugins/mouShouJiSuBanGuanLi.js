@@ -10,7 +10,7 @@
 // [public: true]
 // [priority: 51]
 // [class: 任务]
-// [icon: https://cdn.jsdelivr.net/npm/@tabler/icons@latest/icons/settings.svg]
+// [icon: https://wiki.920pdd.com/uploads/avatars/2024/12/01//fwUbpklrVjbmOWJz.png]
 // [origin: backup/某手极速版_v1.5_By.8165799.py]
 // [depe: ["./mrconliAccountRuntime.js"]]
 

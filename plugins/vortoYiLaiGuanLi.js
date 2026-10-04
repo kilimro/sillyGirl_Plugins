@@ -9,7 +9,7 @@
 // [public: true]
 // [priority: 0]
 // [class: 工具]
-// [icon: https://cdn.jsdelivr.net/npm/@tabler/icons@latest/icons/settings.svg]
+// [icon: https://wiki.920pdd.com/uploads/avatars/2024/12/01//fwUbpklrVjbmOWJz.png]
 // [origin: backup/【必装】Vorto插件依赖_v3.6_By.rujingxianghai.py]
 // [depe: ["./vortoUtils.js"]]
 

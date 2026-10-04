@@ -10,7 +10,7 @@
 // [public: true]
 // [priority: 55]
 // [class: 工具类]
-// [icon: https://i.mji.rip/2025/07/11/c15f6ee61d307572a981010a53fbb572.png]
+// [icon: https://wiki.920pdd.com/uploads/avatars/2024/12/01//fwUbpklrVjbmOWJz.png]
 // [origin: backup/【插件】-看余杭_v1.2.2_By.huawei.py;backup/看余杭_v1.3.1_By.rujingxianghai.py]
 // [depe: ["./mrconliAccountRuntime.js"]]
 

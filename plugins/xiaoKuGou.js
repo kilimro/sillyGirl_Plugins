@@ -10,7 +10,7 @@
 // [public: true]
 // [priority: 50]
 // [class: 任务]
-// [icon: https://img.3dmgame.com/uploads/images/thumbnews/20220914/1663143036_387843.jpg]
+// [icon: https://wiki.920pdd.com/uploads/avatars/2024/12/01//fwUbpklrVjbmOWJz.png]
 // [origin: backup/小酷狗_v2.0_By.sky2022.py]
 // [depe: ["./mrconliAccountRuntime.js"]]
 

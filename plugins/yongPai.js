@@ -9,7 +9,7 @@
 // [public: true]
 // [priority: 55]
 // [class: 任务]
-// [icon: https://img.cdn1.vip/i/6a0b1e9842df2_1779113624.webp]
+// [icon: https://wiki.920pdd.com/uploads/avatars/2024/12/01//fwUbpklrVjbmOWJz.png]
 // [origin: backup/app_甬派_v0_By.601712460.py;backup/甬派_v4.5_By.sky2022.py;backup/甬派注册机_v1.5.5_By.linzixuan.py;backup/甬派管理_v1.1_By.8165799.py]
 // [depe: ["./mrconliAccountRuntime.js"]]
 

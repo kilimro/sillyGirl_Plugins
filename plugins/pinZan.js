@@ -10,7 +10,7 @@
 // [public: true]
 // [priority: 55]
 // [class: 工具类]
-// [icon: https://img.cdn1.vip/i/69e0f096d26ae_1776349334.webp]
+// [icon: https://wiki.920pdd.com/uploads/avatars/2024/12/01//fwUbpklrVjbmOWJz.png]
 // [origin: backup/品赞_v1.4.1_By.sky2022.py;backup/wqwl-pzdl_v1.0.0_By.wqwlkj2985.js;backup/品赞管理_v0.1.0_By.xiaoqing.js;backup/品赞管理_v0.1.0_By.xiaoqing.txt]
 // [depe: ["./mrconliAccountRuntime.js","./vortoUtils.js"]]
 

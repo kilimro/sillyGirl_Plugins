@@ -9,7 +9,7 @@
 // [public: true]
 // [priority: 100]
 // [class: 娱乐]
-// [icon: https://cdn.jsdelivr.net/npm/@tabler/icons@latest/icons/puzzle.svg]
+// [icon: https://wiki.920pdd.com/uploads/avatars/2024/12/01//fwUbpklrVjbmOWJz.png]
 // [origin: backup/保安日记_v1.0.0_By.qw21560.txt;backup/疯狂星期四KFC_v1.0.0_By.qw21560.txt;backup/懒羊羊翻唱歌曲_v1.0.0_By.qw21560.txt;backup/绿茶语录_v1.0.0_By.qw21560.txt;backup/随机生活常识_v1.0.0_By.qw21560.txt;backup/舔狗日记_vv1.0.1_By.960342874.txt;backup/笑话_v1.0.0_By.blycoris.txt;backup/美女_v1.0.0_By.kevin.txt]
 // [depe: []]
 

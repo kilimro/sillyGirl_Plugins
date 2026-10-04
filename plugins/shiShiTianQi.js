@@ -9,7 +9,7 @@
 // [public: true]
 // [priority: 0]
 // [class: 工具]
-// [icon: https://img.icons8.com/fluency/96/sun.png]
+// [icon: https://wiki.920pdd.com/uploads/avatars/2024/12/01//fwUbpklrVjbmOWJz.png]
 // [origin: backup/实时天气_v2.0.0_By.XiaoBo_.txt;backup/天气_v1.0.1_By.qw21560.txt]
 // [depe: []]
 

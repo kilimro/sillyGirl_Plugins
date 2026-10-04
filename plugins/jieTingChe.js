@@ -9,7 +9,7 @@
 // [public: true]
 // [priority: 55]
 // [class: 工具类]
-// [icon: https://free.picui.cn/free/2025/12/17/69418a3031112.png]
+// [icon: https://wiki.920pdd.com/uploads/avatars/2024/12/01//fwUbpklrVjbmOWJz.png]
 // [origin: backup/捷停车_v1.5.3_By.huawei.py]
 // [depe: ["./mrconliAccountRuntime.js"]]
 

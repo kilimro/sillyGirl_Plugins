@@ -9,7 +9,7 @@
 // [public: true]
 // [priority: 55]
 // [class: 任务]
-// [icon: https://static.foodtalks.cn/company/images/214/35logo.jpg]
+// [icon: https://wiki.920pdd.com/uploads/avatars/2024/12/01//fwUbpklrVjbmOWJz.png]
 // [origin: backup/朴朴超市_v1.1.3_By.yuhualhh.py]
 // [depe: ["./mrconliAccountRuntime.js"]]
 

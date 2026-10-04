@@ -12,7 +12,7 @@
 // [public: true]
 // [priority: 999999]
 // [class: 工具类]
-// [icon: https://cdn.jsdelivr.net/npm/@tabler/icons@latest/icons/shopping-cart.svg]
+// [icon: https://www.jd.com/favicon.ico]
 // [carry: true]
 // [origin: backup/东东农场推送版_v1.6.6_By.xiaoqing.txt;backup/农场浇水_v0.7.9_By.xiaoqing.txt;backup/农场管理_v4.3.9_By.specter.txt;backup/新农场助力_v0.3.2_By.qingge.txt]
 // [depe: ["./jdLegacyCore.js"]]

@@ -9,7 +9,7 @@
 // [public: true]
 // [priority: 55]
 // [class: 任务]
-// [icon: https://uapis.cn/static/uploads/9b25f4d581_5gbszuxm7Mt8.webp]
+// [icon: https://wiki.920pdd.com/uploads/avatars/2024/12/01//fwUbpklrVjbmOWJz.png]
 // [origin: backup/联通_v2.1_By.sky2022.py]
 // [depe: ["./mrconliAccountRuntime.js","./unicomAssetCore.js"]]
 

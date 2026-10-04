@@ -10,7 +10,7 @@
 // [public: true]
 // [priority: 20]
 // [class: 任务]
-// [icon: https://cdn.jsdelivr.net/npm/@tabler/icons@latest/icons/puzzle.svg]
+// [icon: https://wiki.920pdd.com/uploads/avatars/2024/12/01//fwUbpklrVjbmOWJz.png]
 // [origin: backup/彼得_粉象生活_vV6.25_By.Bidepan.py;backup/粉象生活_vV6.35_By.sky2022.py;backup/粉象生活（授权版）_vV6.26_By.linzixuan.py;backup/wqwl-粉象生活_v1.0.3_By.wqwlkj2985.js;backup/wqwl-粉象生活_v1.0.3_By.wqwlkj2985.txt]
 // [depe: []]
 

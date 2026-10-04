@@ -12,7 +12,7 @@
 // [public: true]
 // [priority: 777777777]
 // [class: 工具类]
-// [icon: https://cdn.jsdelivr.net/npm/@tabler/icons@latest/icons/shopping-cart.svg]
+// [icon: https://www.jd.com/favicon.ico]
 // [carry: true]
 // [origin: backup/JD关注有礼_vv1.0.6_By.hdbjlizhe.txt;backup/JD未来活动定时pro_v1.7.5_By.zq8884.txt;backup/JD未来活动通知_v1.3.3_By.qingge.js;backup/开卡监控pro_v10_By.funyhook.txt]
 // [depe: ["./jdLegacyCore.js"]]

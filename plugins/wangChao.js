@@ -9,7 +9,7 @@
 // [public: true]
 // [priority: 50]
 // [class: 任务]
-// [icon: https://pp.myapp.com/ma_icon/0/icon_42259219_1711261436/256]
+// [icon: https://wiki.920pdd.com/uploads/avatars/2024/12/01//fwUbpklrVjbmOWJz.png]
 // [origin: backup/望潮_v2.3_By.sky2022.py;backup/望潮云端_v1.0.3_By.huawei.py]
 // [depe: ["./mrconliAccountRuntime.js"]]
 

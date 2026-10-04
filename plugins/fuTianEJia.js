@@ -9,7 +9,7 @@
 // [public: true]
 // [priority: 55]
 // [class: 任务]
-// [icon: https://images.mingming.dev/file/7c1c97c112588fbf7c0db.png]
+// [icon: https://wiki.920pdd.com/uploads/avatars/2024/12/01//fwUbpklrVjbmOWJz.png]
 // [origin: backup/福田e家_v5.0_By.sky2022.py]
 // [depe: ["./mrconliAccountRuntime.js"]]
 

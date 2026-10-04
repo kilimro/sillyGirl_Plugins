@@ -10,7 +10,7 @@
 // [public: true]
 // [priority: 50]
 // [class: 任务]
-// [icon: https://bbs.autman.cn/assets/files/2025-02-24/1740367368-625873-tanyiyunpan.jpg]
+// [icon: https://wiki.920pdd.com/uploads/avatars/2024/12/01//fwUbpklrVjbmOWJz.png]
 // [origin: backup/天翼云盘签到_v1.0.0_By.hdbjlizhe.py]
 // [depe: ["./mrconliAccountRuntime.js"]]
 

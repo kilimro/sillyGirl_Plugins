@@ -10,7 +10,7 @@
 // [public: true]
 // [priority: 55]
 // [class: 工具类]
-// [icon: https://y.gtimg.cn/music/photo_new/T053M0000011Juce2IQQ8j.jpg]
+// [icon: https://wiki.920pdd.com/uploads/avatars/2024/12/01//fwUbpklrVjbmOWJz.png]
 // [origin: backup/桃色VIP_v1.4.0_By.rujingxianghai.py]
 // [depe: ["./mrconliAccountRuntime.js"]]
 

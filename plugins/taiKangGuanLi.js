@@ -10,7 +10,7 @@
 // [public: true]
 // [priority: 0]
 // [class: 工具类]
-// [icon: https://y.gtimg.cn/music/photo_new/T053M000002Qqrye0oyZSp.jpg]
+// [icon: https://wiki.920pdd.com/uploads/avatars/2024/12/01//fwUbpklrVjbmOWJz.png]
 // [origin: backup/泰康管理_v3.0_By.rujingxianghai.py]
 // [depe: ["./vortoUtils.js"]]
 

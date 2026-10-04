@@ -10,7 +10,7 @@
 // [public: true]
 // [priority: 55]
 // [class: 工具类]
-// [icon: https://tg.96218.xyz/file/BQACAgUAAxkDAAIHH2ndrLaGBqLSp_CBtVTMX_APbIu_AAJVIAAC-STxVqpdpxV5PVduOwQ.png]
+// [icon: https://wiki.920pdd.com/uploads/avatars/2024/12/01//fwUbpklrVjbmOWJz.png]
 // [origin: backup/四个朋友_v1.0.1_By.huawei.py]
 // [depe: ["./mrconliAccountRuntime.js"]]
 

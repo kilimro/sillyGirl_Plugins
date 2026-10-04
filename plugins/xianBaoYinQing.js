@@ -10,7 +10,7 @@
 // [public: true]
 // [priority: 999999999]
 // [class: 工具类]
-// [icon: https://gitee.com/aa2128/static/raw/master/icon/%E5%8D%A1%E9%80%9A%E7%BB%B5%E7%BE%8A.png]
+// [icon: https://wiki.920pdd.com/uploads/avatars/2024/12/01//fwUbpklrVjbmOWJz.png]
 // [module: false]
 // [carry: true]
 // [origin: backup/线报引擎_v6_By.funyhook.txt]

@@ -10,7 +10,7 @@
 // [public: true]
 // [priority: 0]
 // [class: 工具]
-// [icon: https://pic2.ziyuan.wang/user/974566903/2025/08/jj_ab8218111b3f2.jpg]
+// [icon: https://wiki.920pdd.com/uploads/avatars/2024/12/01//fwUbpklrVjbmOWJz.png]
 // [origin: backup/今日金价_v1.7_By.974566903@qq.com.txt]
 // [depe: []]
 

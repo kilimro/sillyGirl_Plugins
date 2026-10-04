@@ -8,7 +8,7 @@
 // [public: true]
 // [priority: 10]
 // [class: 工具类]
-// [icon: https://cdn.jsdelivr.net/npm/@tabler/icons@latest/icons/shopping-cart.svg]
+// [icon: https://www.jd.com/favicon.ico]
 // [module: true]
 // [carry: true]
 // [origin: backup/JD通用sign_v1.6.3_By.chuan.py;backup/JD通用sign_v1.6.3_By.chuan.txt;backup/JDsignES5版_v1.0.0_By.hunyan.txt]

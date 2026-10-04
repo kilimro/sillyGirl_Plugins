@@ -9,7 +9,7 @@
 // [public: true]
 // [priority: 999999]
 // [class: 任务]
-// [icon: https://www.sf-express.com/chn/_next/static/media/ic-white-logo.abea573f.png]
+// [icon: https://wiki.920pdd.com/uploads/avatars/2024/12/01//fwUbpklrVjbmOWJz.png]
 // [origin: backup/顺丰抢兑_v7.9.0_By.1934103887.py]
 // [depe: ["undici"]]
 

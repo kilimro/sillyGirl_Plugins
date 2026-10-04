@@ -10,7 +10,7 @@
 // [public: true]
 // [priority: 55]
 // [class: 工具类]
-// [icon: https://pp.myapp.com/ma_icon/0/icon_52735792_1742312403/256]
+// [icon: https://wiki.920pdd.com/uploads/avatars/2024/12/01//fwUbpklrVjbmOWJz.png]
 // [origin: backup/【自用】-爱路桥_v1.0.4_By.huawei.py;backup/爱路桥_v1.4.0_By.mrconli.py]
 // [depe: ["./mrconliAccountRuntime.js"]]
 

@@ -9,7 +9,7 @@
 // [public: true]
 // [priority: 0]
 // [class: 任务]
-// [icon: https://pp.myapp.com/ma_icon/0/icon_54326748_1755482552/256]
+// [icon: https://wiki.920pdd.com/uploads/avatars/2024/12/01//fwUbpklrVjbmOWJz.png]
 // [origin: backup/星芽免费短剧_v2.2_By.Jiang0529.py;backup/星芽时长刷取_v1.0.0_By.rujingxianghai.py;backup/星芽短剧_v2.7.0_By.mrconli.py]
 // [depe: []]
 

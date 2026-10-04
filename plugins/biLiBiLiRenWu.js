@@ -9,7 +9,7 @@
 // [public: true]
 // [priority: 0]
 // [class: 工具]
-// [icon: https://z1.ax1x.com/2023/12/02/pisWK2V.png]
+// [icon: https://wiki.920pdd.com/uploads/avatars/2024/12/01//fwUbpklrVjbmOWJz.png]
 // [origin: backup/哔哩哔哩任务_vv1.0.2_By.960342874.txt]
 // [depe: []]
 

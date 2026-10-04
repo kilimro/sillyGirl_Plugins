@@ -11,7 +11,7 @@
 // [public: true]
 // [priority: 60]
 // [class: 工具类]
-// [icon: https://pp.myapp.com/ma_icon/0/icon_1029694_1725435529/256]
+// [icon: https://wiki.920pdd.com/uploads/avatars/2024/12/01//fwUbpklrVjbmOWJz.png]
 // [origin: backup/好饿饿_v2.2.6_By.Lxg-021002.py]
 // [depe: ["./mrconliAccountRuntime.js"]]
 

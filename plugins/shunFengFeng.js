@@ -9,7 +9,7 @@
 // [public: true]
 // [priority: 0]
 // [class: 任务]
-// [icon: https://img.icons8.com/fluency/96/plugin.png]
+// [icon: https://wiki.920pdd.com/uploads/avatars/2024/12/01//fwUbpklrVjbmOWJz.png]
 // [origin: backup/顺丰丰_v2.0.4_By.Lxg-021002.txt]
 // [depe: []]
 

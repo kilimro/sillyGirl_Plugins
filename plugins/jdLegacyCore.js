@@ -8,7 +8,7 @@
 // [public: true]
 // [priority: 0]
 // [class: 模块]
-// [icon: https://cdn.jsdelivr.net/npm/@tabler/icons@latest/icons/shopping-cart.svg]
+// [icon: https://www.jd.com/favicon.ico]
 // [module: true]
 // [carry: false]
 // [origin: 自定义]

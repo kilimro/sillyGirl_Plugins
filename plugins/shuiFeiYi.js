@@ -10,7 +10,7 @@
 // [public: true]
 // [priority: 55]
 // [class: 工具类]
-// [icon: https://bbs.autman.cn/assets/files/2025-06-17/1750162614-990316-567139274dae9a67a5e369f51a18fcda.webp]
+// [icon: https://wiki.920pdd.com/uploads/avatars/2024/12/01//fwUbpklrVjbmOWJz.png]
 // [origin: backup/水费易_v1.0.0_By.mrconli.py]
 // [depe: ["./mrconliAccountRuntime.js"]]
 

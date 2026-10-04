@@ -10,7 +10,7 @@
 // [public: true]
 // [priority: 55]
 // [class: 工具类]
-// [icon: https://cdn.jsdelivr.net/npm/@tabler/icons@latest/icons/calendar-check.svg]
+// [icon: https://wiki.920pdd.com/uploads/avatars/2024/12/01//fwUbpklrVjbmOWJz.png]
 // [origin: backup/雨云_v1.1.1_By.sky2022.py;backup/雨云签到_v1.1_By.rujingxianghai.py]
 // [depe: ["./mrconliAccountRuntime.js"]]
 

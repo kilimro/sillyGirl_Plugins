@@ -9,7 +9,7 @@
 // [public: true]
 // [priority: 55]
 // [class: 任务]
-// [icon: https://i.mji.rip/2025/07/11/2350538ac014afbea48b64409bd5931c.png]
+// [icon: https://wiki.920pdd.com/uploads/avatars/2024/12/01//fwUbpklrVjbmOWJz.png]
 // [origin: backup/【插件】-星妈_v1.2.0_By.huawei.py;backup/星妈优选_v1.0.5_By.sky2022.py]
 // [depe: ["./mrconliAccountRuntime.js"]]
 

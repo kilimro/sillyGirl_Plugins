@@ -10,7 +10,7 @@
 // [public: true]
 // [priority: 0]
 // [class: 工具类]
-// [icon: https://img.tmuyun.com/assets/20240407/1712463980445_6612206c79f6be6b2230e399.png]
+// [icon: https://wiki.920pdd.com/uploads/avatars/2024/12/01//fwUbpklrVjbmOWJz.png]
 // [origin: backup/app_西施_v0_By.601712460.py]
 // [depe: ["./tmuyunJinhuaRuntime.js"]]
 

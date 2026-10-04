@@ -9,7 +9,7 @@
 // [public: true]
 // [priority: 60]
 // [class: 工具]
-// [icon: https://gcore.jsdelivr.net/gh/lhz03/img@628ca207fcc92493bfdc7b376802df13d290a228/2025/04/18/0227ee80f756be5352c84c94d7f9cdf6.png]
+// [icon: https://wiki.920pdd.com/uploads/avatars/2024/12/01//fwUbpklrVjbmOWJz.png]
 // [origin: backup/美团领券PLUS_v2.1.9_By.yuhualhh.py;backup/美团领卷_v1.4.4_By.sky2022.py]
 // [depe: ["./vortoUtils.js"]]
 

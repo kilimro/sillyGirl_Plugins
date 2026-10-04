@@ -10,7 +10,7 @@
 // [public: true]
 // [priority: 55]
 // [class: 工具类]
-// [icon: https://uapis.cn/static/uploads/9b1643baac_q1mBS7qtm3iX.webp]
+// [icon: https://wiki.920pdd.com/uploads/avatars/2024/12/01//fwUbpklrVjbmOWJz.png]
 // [origin: backup/农夫山泉_vV7.4_By.sky2022.py]
 // [depe: ["./mrconliAccountRuntime.js"]]
 

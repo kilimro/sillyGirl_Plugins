@@ -10,7 +10,7 @@
 // [public: true]
 // [priority: 50]
 // [class: 任务]
-// [icon: http://5b0988e595225.cdn.sohucs.com/images/20190724/f8f8ace898584a2dbd3f20c2d2822c96.jpeg]
+// [icon: https://wiki.920pdd.com/uploads/avatars/2024/12/01//fwUbpklrVjbmOWJz.png]
 // [origin: backup/小快手_v5.2.5_By.linzixuan.py;backup/小快手测试_v5.0_By.linzixuan.py]
 // [depe: ["./mrconliAccountRuntime.js"]]
 

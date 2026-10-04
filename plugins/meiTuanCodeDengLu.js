@@ -10,7 +10,7 @@
 // [public: true]
 // [priority: 50]
 // [class: 工具]
-// [icon: https://cdn.jsdelivr.net/npm/@tabler/icons@latest/icons/puzzle.svg]
+// [icon: https://wiki.920pdd.com/uploads/avatars/2024/12/01//fwUbpklrVjbmOWJz.png]
 // [origin: backup/美团团_v2.2.7_By.Lxg-021002.py]
 // [depe: ["./vortoUtils.js"]]
 

@@ -10,7 +10,7 @@
 // [public: true]
 // [priority: 0]
 // [class: 工具]
-// [icon: https://img.icons8.com/fluency/96/news.png]
+// [icon: https://wiki.920pdd.com/uploads/avatars/2024/12/01//fwUbpklrVjbmOWJz.png]
 // [origin: backup/60s_v1.1.2_By.XiaoBo_.txt]
 // [depe: []]
 

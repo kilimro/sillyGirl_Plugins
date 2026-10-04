@@ -10,7 +10,7 @@
 // [public: true]
 // [priority: 55]
 // [class: 工具类]
-// [icon: https://nos.netease.com/ysf/d4f8b7f99ae2b9ffb33ebfdedcf0776c.jpg]
+// [icon: https://wiki.920pdd.com/uploads/avatars/2024/12/01//fwUbpklrVjbmOWJz.png]
 // [origin: backup/唔语听书_vV2.3_By.97610325.py]
 // [depe: ["./mrconliAccountRuntime.js"]]
 

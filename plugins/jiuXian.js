@@ -9,7 +9,7 @@
 // [public: true]
 // [priority: 55]
 // [class: 任务]
-// [icon: https://pp.myapp.com/ma_icon/0/icon_10072620_1758940657/256]
+// [icon: https://wiki.920pdd.com/uploads/avatars/2024/12/01//fwUbpklrVjbmOWJz.png]
 // [origin: backup/m039_酒仙_v1.2.0_By.mrconli.py;backup/酒仙_v1.7_By.rujingxianghai.py;backup/酒仙签到_v1.6_By.rujingxianghai.py]
 // [depe: ["./mrconliAccountRuntime.js"]]
 

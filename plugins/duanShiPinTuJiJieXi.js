@@ -10,7 +10,7 @@
 // [public: true]
 // [priority: 999999999]
 // [class: 影音类]
-// [icon: https://bbs.autman.cn/assets/files/2023-12-12/1702408610-992864-favicon.ico]
+// [icon: https://wiki.920pdd.com/uploads/avatars/2024/12/01//fwUbpklrVjbmOWJz.png]
 // [carry: true]
 // [origin: backup/短视频图集解析_v1.1.2_By.297129582.txt;backup/短视频图集解析_v1.2.0_By.297129582.js]
 // [depe: []]

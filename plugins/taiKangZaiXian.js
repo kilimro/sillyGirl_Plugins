@@ -10,7 +10,7 @@
 // [public: true]
 // [priority: 55]
 // [class: 工具类]
-// [icon: https://pp.myapp.com/ma_icon/0/icon_42327729_1745494497/256]
+// [icon: https://wiki.920pdd.com/uploads/avatars/2024/12/01//fwUbpklrVjbmOWJz.png]
 // [origin: backup/泰康在线_v1.5.0_By.mrconli.py]
 // [depe: ["./mrconliAccountRuntime.js"]]
 

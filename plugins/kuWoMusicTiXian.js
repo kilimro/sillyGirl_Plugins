@@ -10,7 +10,7 @@
 // [public: true]
 // [priority: 50]
 // [class: 任务]
-// [icon: https://img.cdn1.vip/i/69d62b975e88c_1775643543.png]
+// [icon: https://wiki.920pdd.com/uploads/avatars/2024/12/01//fwUbpklrVjbmOWJz.png]
 // [origin: backup/酷我Music提现_v3.11_By.sky2022.py]
 // [depe: ["./kuwoCore.js","./vortoUtils.js","undici"]]
 

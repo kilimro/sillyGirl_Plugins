@@ -10,7 +10,7 @@
 // [public: true]
 // [priority: 99999]
 // [class: 工具类]
-// [icon: https://cdn.jsdelivr.net/npm/@tabler/icons@latest/icons/shopping-cart.svg]
+// [icon: https://www.jd.com/favicon.ico]
 // [carry: true]
 // [origin: backup/JD自动评价_v0.1.0_By.qingge.js;backup/京东自动评价_v1.0.3_By.hunyan.js;backup/自动评价_v1.4.8_By.specter.py;backup/自动评价_v1.4.8_By.specter.txt]
 // [depe: ["./jdLegacyCore.js"]]

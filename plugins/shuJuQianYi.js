@@ -9,7 +9,7 @@
 // [public: true]
 // [priority: 0]
 // [class: 工具]
-// [icon: https://cdn.jsdelivr.net/npm/@tabler/icons@latest/icons/puzzle.svg]
+// [icon: https://wiki.920pdd.com/uploads/avatars/2024/12/01//fwUbpklrVjbmOWJz.png]
 // [origin: backup/autman数据导出_v1.1.0_By.sky2022.py;backup/分发接收助手_v1.0.5_By.yuhualhh.py;backup/数据迁移_v1.0.6_By.sky2022.py;backup/闪电娘账密迁移_v1.0.1_By.chuan.py]
 // [depe: []]
 

@@ -10,7 +10,7 @@
 // [public: true]
 // [priority: 50]
 // [class: 任务]
-// [icon: https://cdn.jsdelivr.net/npm/@tabler/icons@latest/icons/puzzle.svg]
+// [icon: https://wiki.920pdd.com/uploads/avatars/2024/12/01//fwUbpklrVjbmOWJz.png]
 // [origin: backup/q002-酷我音乐_v1.1.0_By.yueiqiu4523.py;backup/酷我Music_v1.3.9_By.sky2022.py]
 // [depe: ["./mrconliAccountRuntime.js"]]
 

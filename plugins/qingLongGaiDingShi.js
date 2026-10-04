@@ -9,7 +9,7 @@
 // [public: true]
 // [priority: 0]
 // [class: 任务]
-// [icon: https://cdn.jsdelivr.net/npm/@tabler/icons@latest/icons/clock.svg]
+// [icon: https://wiki.920pdd.com/uploads/avatars/2024/12/01//fwUbpklrVjbmOWJz.png]
 // [origin: backup/青龙改定时_v0.0.7_By.sn_jmh.py]
 // [depe: []]
 

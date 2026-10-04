@@ -10,7 +10,7 @@
 // [public: true]
 // [priority: 55]
 // [class: 工具类]
-// [icon: https://pp.myapp.com/ma_icon/0/icon_52529046_1757929454/256]
+// [icon: https://wiki.920pdd.com/uploads/avatars/2024/12/01//fwUbpklrVjbmOWJz.png]
 // [origin: backup/m038_爱仙居_v1.5.0_By.mrconli.py;backup/爱仙居_v1.8_By.8165799.py]
 // [depe: ["./mrconliAccountRuntime.js"]]
 

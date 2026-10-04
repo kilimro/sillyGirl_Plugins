@@ -9,7 +9,7 @@
 // [public: true]
 // [priority: 50]
 // [class: 工具]
-// [icon: https://images.mingming.dev/file/7c1c97c112588fbf7c0db.png]
+// [icon: https://wiki.920pdd.com/uploads/avatars/2024/12/01//fwUbpklrVjbmOWJz.png]
 // [origin: backup/福田下单_v1.0_By.rujingxianghai.py]
 // [depe: []]
 

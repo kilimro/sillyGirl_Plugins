@@ -10,7 +10,7 @@
 // [public: true]
 // [priority: 0]
 // [class: 工具]
-// [icon: https://cdn.jsdelivr.net/npm/@tabler/icons@latest/icons/puzzle.svg]
+// [icon: https://wiki.920pdd.com/uploads/avatars/2024/12/01//fwUbpklrVjbmOWJz.png]
 // [origin: smallfawn/Bncr_Plugins]
 // [depe: []]
 

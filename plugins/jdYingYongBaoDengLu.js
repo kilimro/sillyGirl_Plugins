@@ -9,7 +9,7 @@
 // [public: true]
 // [priority: 101]
 // [class: 工具类]
-// [icon: https://cdn.jsdelivr.net/npm/@tabler/icons@latest/icons/key.svg]
+// [icon: https://www.jd.com/favicon.ico]
 // [carry: true]
 // [origin: backup/京东应用宝协议_v2.0.0_By.1934103887.py;backup/京东登录_v3.3.0_By.97610325.py]
 // [depe: ["./jdLegacyCore.js"]]

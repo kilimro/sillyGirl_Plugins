@@ -10,7 +10,7 @@
 // [public: true]
 // [priority: 50]
 // [class: 任务]
-// [icon: https://gcore.jsdelivr.net/gh/lhz03/img@368cbd87cbbdfd3bff1534d4c7a7957ca76f1c54/2025/02/18/4003bcfc1f8d46cd6f9de1b656bbddab.png]
+// [icon: https://wiki.920pdd.com/uploads/avatars/2024/12/01//fwUbpklrVjbmOWJz.png]
 // [origin: backup/小蚕霸王餐_v11.2.3_By.yuhualhh.py]
 // [depe: ["./mrconliAccountRuntime.js"]]
 

@@ -10,7 +10,7 @@
 // [public: true]
 // [priority: 55]
 // [class: 工具类]
-// [icon: https://bbs.autman.cn/assets/files/2025-09-07/1757242448-823459-hsy.webp]
+// [icon: https://wiki.920pdd.com/uploads/avatars/2024/12/01//fwUbpklrVjbmOWJz.png]
 // [origin: backup/m001_回收猿_v1.4.0_By.mrconli.py]
 // [depe: ["./mrconliAccountRuntime.js"]]
 

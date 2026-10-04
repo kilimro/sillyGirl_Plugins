@@ -10,7 +10,7 @@
 // [public: true]
 // [priority: 55]
 // [class: 工具类]
-// [icon: https://tg.96218.xyz/file/BQACAgUAAxkDAAIHFmnWkfnJZmy8WvxGVwUfxeodeYpbAAKrHwACEl6xVmklajBDFl5AOwQ.png]
+// [icon: https://wiki.920pdd.com/uploads/avatars/2024/12/01//fwUbpklrVjbmOWJz.png]
 // [origin: backup/牛牛短剧_v1.1_By.huawei.py]
 // [depe: ["./mrconliAccountRuntime.js"]]
 

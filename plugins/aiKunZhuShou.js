@@ -13,7 +13,7 @@
 // [public: true]
 // [priority: 0]
 // [class: 任务]
-// [icon: https://cdn.jsdelivr.net/npm/@tabler/icons@latest/icons/puzzle.svg]
+// [icon: https://wiki.920pdd.com/uploads/avatars/2024/12/01//fwUbpklrVjbmOWJz.png]
 // [origin: backup/爱坤助手_v2.3.3_By.ahhhahh.py]
 // [depe: []]
 

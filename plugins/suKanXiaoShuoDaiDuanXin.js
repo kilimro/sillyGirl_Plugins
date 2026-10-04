@@ -9,7 +9,7 @@
 // [public: true]
 // [priority: 50]
 // [class: 任务]
-// [icon: https://cdn.jsdelivr.net/npm/@tabler/icons@latest/icons/puzzle.svg]
+// [icon: https://wiki.920pdd.com/uploads/avatars/2024/12/01//fwUbpklrVjbmOWJz.png]
 // [origin: backup/速看_v3.6_By.8165799.py;backup/速看免费小说_v1.0.3_By.rujingxianghai.py]
 // [depe: ["./mrconliAccountRuntime.js","./sukanCore.js"]]
 
