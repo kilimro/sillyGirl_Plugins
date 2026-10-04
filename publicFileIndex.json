@@ -20,7 +20,7 @@
     "path": "plugins/aiChat.js",
     "raw": "https://raw.githubusercontent.com/kilimro/sillyGirl_Plugins/main/plugins/aiChat.js",
     "dependencies": [],
-    "module_dependencies": ["./memoryCore.js", "./openaiChatCore.js"],
+    "module_dependencies": ["./memoryCore.js", "./openaiChatCore.js", "./ttsCore.js"],
     "type": "node",
     "origin": "https://github.com/kilimro/sillyGirl_Plugins",
     "create_at": "2026-10-03T14:20:02.000Z"

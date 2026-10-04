@@ -11,7 +11,7 @@
 // [class: 大模型]
 // [icon: https://ecmb.bdimg.com/tam-ogel/-341441530_114552854_88_88.png]
 // [origin: 自定义]
-// [depe: ["./memoryCore.js","./openaiChatCore.js"]]
+// [depe: ["./memoryCore.js","./openaiChatCore.js","./ttsCore.js"]]
 
 const { sender: s, Bucket, plugin } = require("sillygirl");
 const ai = require("./openaiChatCore.js");
