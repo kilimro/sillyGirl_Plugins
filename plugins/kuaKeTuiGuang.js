@@ -10,7 +10,7 @@
 // [public: true]
 // [priority: 99999]
 // [class: 工具类]
-// [icon: https://api.iconify.design/lucide:apple.svg]
+// [icon: https://cdn.jsdelivr.net/npm/@tabler/icons@latest/icons/puzzle.svg]
 // [origin: backup/夸克推广_v1.0.0_By.rujingxianghai.py]
 // [depe: ["./vortoUtils.js"]]
 

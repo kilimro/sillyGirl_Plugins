@@ -8,7 +8,7 @@
 // [public: true]
 // [priority: 0]
 // [class: 模块]
-// [icon: https://api.iconify.design/lucide:users-round.svg]
+// [icon: https://cdn.jsdelivr.net/npm/@tabler/icons@latest/icons/key.svg]
 // [module: true]
 // [origin: backup/mrconli系列插件]
 // [depe: ["./vortoUtils.js","undici"]]

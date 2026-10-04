@@ -9,7 +9,7 @@
 // [public: true]
 // [priority: 0]
 // [class: 娱乐]
-// [icon: https://api.iconify.design/lucide:bot.svg]
+// [icon: https://cdn.jsdelivr.net/npm/@tabler/icons@latest/icons/search.svg]
 // [origin: backup/王者战力查询_v1.1.0_By.yuhualhh.py]
 // [depe: []]
 

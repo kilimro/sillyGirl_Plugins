@@ -9,7 +9,7 @@
 // [public: true]
 // [priority: 0]
 // [class: 工具]
-// [icon: https://api.iconify.design/lucide:message-square-more.svg]
+// [icon: https://cdn.jsdelivr.net/npm/@tabler/icons@latest/icons/settings.svg]
 // [origin: backup/bc_qq手机号撤回_v1.0.0_By.241793.py;backup/QQ关联_v1.0.2_By.chuan.py;backup/Vorto群管理_v1.0_By.rujingxianghai.py;backup/人工通知_v1.0.3_By.sky2022.py;backup/消息推送_v1.6.3_By.chuan.py]
 // [depe: []]
 

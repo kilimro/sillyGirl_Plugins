@@ -9,7 +9,7 @@
 // [public: true]
 // [priority: 0]
 // [class: 工具]
-// [icon: https://api.iconify.design/lucide:bot.svg]
+// [icon: https://cdn.jsdelivr.net/npm/@tabler/icons@latest/icons/puzzle.svg]
 // [origin: backup/云市场助手_v1.2.0_By.yuhualhh.py;backup/云订阅助手_v1.1.7_By.yuhualhh.py;backup/奥特曼助手_v1.0.4_By.241793.py;backup/插件加白_v1.0.0_By.sky2022.py;backup/插件解密_v1.0.4_By.yuhualhh.py;backup/订阅源_v1.0.2_By.hdbjlizhe.txt;backup/订阅源集合_v1.4.6_By.specter.txt]
 // [depe: []]
 

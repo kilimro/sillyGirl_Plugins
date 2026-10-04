@@ -9,7 +9,7 @@
 // [public: true]
 // [priority: 0]
 // [class: 工具]
-// [icon: https://api.iconify.design/lucide:bot.svg]
+// [icon: https://cdn.jsdelivr.net/npm/@tabler/icons@latest/icons/puzzle.svg]
 // [origin: smallfawn/Bncr_Plugins]
 // [depe: []]
 

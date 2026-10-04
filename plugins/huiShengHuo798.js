@@ -9,7 +9,7 @@
 // [public: true]
 // [priority: 0]
 // [class: 任务]
-// [icon: https://api.iconify.design/lucide:bot.svg]
+// [icon: https://cdn.jsdelivr.net/npm/@tabler/icons@latest/icons/puzzle.svg]
 // [origin: backup/慧生活798_v1.1.2_By.yuhualhh.py]
 // [depe: []]
 

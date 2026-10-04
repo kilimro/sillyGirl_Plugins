@@ -11,7 +11,7 @@
 // [public: true]
 // [priority: 99999]
 // [class: 工具类]
-// [icon: https://api.iconify.design/lucide:apple.svg]
+// [icon: https://cdn.jsdelivr.net/npm/@tabler/icons@latest/icons/puzzle.svg]
 // [carry: true]
 // [origin: backup/顿顿查_v1.0.0_By.hicong.txt;backup/顿顿饿_vv1.6.4_By.hicong.txt]
 // [depe: []]

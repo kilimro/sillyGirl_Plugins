@@ -9,7 +9,7 @@
 // [public: true]
 // [priority: 55]
 // [class: 任务]
-// [icon: https://api.iconify.design/lucide:landmark.svg]
+// [icon: https://cdn.jsdelivr.net/npm/@tabler/icons@latest/icons/puzzle.svg]
 // [origin: backup/东方财富_v1.4_By.rujingxianghai.py]
 // [depe: ["./mrconliAccountRuntime.js"]]
 

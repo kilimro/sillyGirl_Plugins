@@ -9,7 +9,7 @@
 // [public: true]
 // [priority: 0]
 // [class: 娱乐]
-// [icon: https://api.iconify.design/lucide:bot.svg]
+// [icon: https://cdn.jsdelivr.net/npm/@tabler/icons@latest/icons/puzzle.svg]
 // [origin: backup/综合娱乐插件_v1.2.0_By.rujingxianghai.py;backup/视频解析_v1.2.1_By.sky2022.py]
 // [depe: []]
 

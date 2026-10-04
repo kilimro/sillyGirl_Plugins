@@ -9,7 +9,7 @@
 // [public: true]
 // [priority: 0]
 // [class: 工具]
-// [icon: https://api.iconify.design/lucide:bot.svg]
+// [icon: https://cdn.jsdelivr.net/npm/@tabler/icons@latest/icons/puzzle.svg]
 // [origin: backup/雪乃改密_v1.0.1_By.rujingxianghai.py]
 // [depe: []]
 

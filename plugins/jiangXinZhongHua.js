@@ -9,7 +9,7 @@
 // [public: true]
 // [priority: 50]
 // [class: 工具类]
-// [icon: https://api.iconify.design/lucide:apple.svg]
+// [icon: https://cdn.jsdelivr.net/npm/@tabler/icons@latest/icons/puzzle.svg]
 // [origin: backup/匠心中华_v1.3.7_By.huawei.py]
 // [depe: ["./mrconliAccountRuntime.js"]]
 

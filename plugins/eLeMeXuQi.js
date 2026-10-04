@@ -9,7 +9,7 @@
 // [public: true]
 // [priority: 9999]
 // [class: 工具]
-// [icon: https://api.iconify.design/lucide:refresh-cw.svg]
+// [icon: https://cdn.jsdelivr.net/npm/@tabler/icons@latest/icons/puzzle.svg]
 // [origin: backup/饿了么续期_v3.2.3_By.chuan.py]
 // [depe: []]
 

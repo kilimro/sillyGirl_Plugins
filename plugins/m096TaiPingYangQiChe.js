@@ -10,7 +10,7 @@
 // [public: true]
 // [priority: 0]
 // [class: 任务]
-// [icon: https://api.iconify.design/lucide:apple.svg]
+// [icon: https://cdn.jsdelivr.net/npm/@tabler/icons@latest/icons/puzzle.svg]
 // [origin: backup/m096_太平洋汽车_v1.5.0_By.mrconli.py;backup/太平洋汽车_v1.2_By.rujingxianghai.py]
 // [depe: []]
 

@@ -9,7 +9,7 @@
 // [public: true]
 // [priority: 55]
 // [class: 任务]
-// [icon: https://api.iconify.design/lucide:baby.svg]
+// [icon: https://cdn.jsdelivr.net/npm/@tabler/icons@latest/icons/puzzle.svg]
 // [origin: backup/星妈会_v1.0.3_By.sky2022.py]
 // [depe: ["./mrconliAccountRuntime.js"]]
 

@@ -10,7 +10,7 @@
 // [public: true]
 // [priority: 55]
 // [class: 工具类]
-// [icon: https://api.iconify.design/lucide:map-pinned.svg]
+// [icon: https://cdn.jsdelivr.net/npm/@tabler/icons@latest/icons/puzzle.svg]
 // [origin: backup/m108_潇洒桐庐_v1.2.0_By.mrconli.py]
 // [depe: ["./mrconliAccountRuntime.js"]]
 

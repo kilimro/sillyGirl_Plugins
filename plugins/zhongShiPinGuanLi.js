@@ -10,7 +10,7 @@
 // [public: true]
 // [priority: 55]
 // [class: 工具类]
-// [icon: https://api.iconify.design/lucide:video.svg]
+// [icon: https://cdn.jsdelivr.net/npm/@tabler/icons@latest/icons/settings.svg]
 // [origin: backup/中视频管理_v1.9_By.8165799.py]
 // [depe: ["./mrconliAccountRuntime.js"]]
 

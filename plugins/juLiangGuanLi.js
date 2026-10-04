@@ -9,7 +9,7 @@
 // [public: true]
 // [priority: 999]
 // [class: 工具]
-// [icon: https://api.iconify.design/lucide:network.svg]
+// [icon: https://cdn.jsdelivr.net/npm/@tabler/icons@latest/icons/settings.svg]
 // [origin: backup/巨量管理_v2.1.0_By.chuan.py]
 // [depe: []]
 

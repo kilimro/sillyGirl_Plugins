@@ -9,7 +9,7 @@
 // [public: true]
 // [priority: 0]
 // [class: 工具]
-// [icon: https://api.iconify.design/lucide:apple.svg]
+// [icon: https://cdn.jsdelivr.net/npm/@tabler/icons@latest/icons/settings.svg]
 // [origin: backup/【必装】Vorto插件依赖_v3.6_By.rujingxianghai.py]
 // [depe: ["./vortoUtils.js"]]
 

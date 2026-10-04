@@ -8,7 +8,7 @@
 // [public: true]
 // [priority: 0]
 // [class: 模块]
-// [icon: https://api.iconify.design/lucide:blocks.svg]
+// [icon: https://cdn.jsdelivr.net/npm/@tabler/icons@latest/icons/puzzle.svg]
 // [module: true]
 // [carry: false]
 // [origin: 自定义]

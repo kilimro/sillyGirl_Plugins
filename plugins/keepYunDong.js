@@ -10,7 +10,7 @@
 // [public: true]
 // [priority: 0]
 // [class: 任务]
-// [icon: https://api.iconify.design/lucide:activity.svg]
+// [icon: https://cdn.jsdelivr.net/npm/@tabler/icons@latest/icons/puzzle.svg]
 // [origin: backup/keep_v1.1_By.8165799.py]
 // [depe: []]
 

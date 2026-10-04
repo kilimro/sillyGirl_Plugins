@@ -10,7 +10,7 @@
 // [public: true]
 // [priority: 55]
 // [class: 工具类]
-// [icon: https://api.iconify.design/lucide:apple.svg]
+// [icon: https://cdn.jsdelivr.net/npm/@tabler/icons@latest/icons/puzzle.svg]
 // [origin: backup/白鲸鱼_v1.5.1_By.yueiqiu4523.py;backup/白鲸鱼回收_v1.3.0_By.rujingxianghai.py]
 // [depe: ["./mrconliAccountRuntime.js"]]
 

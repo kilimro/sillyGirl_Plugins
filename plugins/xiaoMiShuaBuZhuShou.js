@@ -9,7 +9,7 @@
 // [public: true]
 // [priority: 0]
 // [class: 任务]
-// [icon: https://api.iconify.design/lucide:apple.svg]
+// [icon: https://cdn.jsdelivr.net/npm/@tabler/icons@latest/icons/puzzle.svg]
 // [origin: backup/小米刷步助手_v5.0_By.1934103887.py;backup/步数_v1.0_By.1668485780.py]
 // [depe: ["./xiaomiStepsCore.js","undici"]]
 

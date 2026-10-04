@@ -10,7 +10,7 @@
 // [public: true]
 // [priority: 50]
 // [class: 任务]
-// [icon: https://api.iconify.design/lucide:wallet-cards.svg]
+// [icon: https://cdn.jsdelivr.net/npm/@tabler/icons@latest/icons/puzzle.svg]
 // [origin: backup/小米社区_v4.4_By.rujingxianghai.py;backup/小米钱包_v2.7_By.linzixuan.py;backup/小米钱包-天天领视频会员_v3.3.3_By.yuhualhh.py]
 // [depe: ["./mrconliAccountRuntime.js"]]
 

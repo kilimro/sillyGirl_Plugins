@@ -10,7 +10,7 @@
 // [public: true]
 // [priority: 0]
 // [class: 任务]
-// [icon: https://api.iconify.design/lucide:apple.svg]
+// [icon: https://cdn.jsdelivr.net/npm/@tabler/icons@latest/icons/puzzle.svg]
 // [origin: backup/众安健康_v3.0_By.rujingxianghai.py]
 // [depe: []]
 

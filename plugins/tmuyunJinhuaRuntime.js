@@ -8,7 +8,7 @@
 // [public: true]
 // [priority: 0]
 // [class: 模块]
-// [icon: https://api.iconify.design/lucide:blocks.svg]
+// [icon: https://cdn.jsdelivr.net/npm/@tabler/icons@latest/icons/clock.svg]
 // [module: true]
 // [origin: backup/app_武义_v0_By.601712460.py;backup/app_西施_v0_By.601712460.py]
 // [depe: ["./vortoUtils.js","undici"]]

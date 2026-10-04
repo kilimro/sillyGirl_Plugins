@@ -9,7 +9,7 @@
 // [public: true]
 // [priority: 6666666]
 // [class: 工具]
-// [icon: https://api.iconify.design/lucide:package-plus.svg]
+// [icon: https://cdn.jsdelivr.net/npm/@tabler/icons@latest/icons/puzzle.svg]
 // [origin: backup/一键安装依赖_v0_By.601712460.py]
 // [depe: []]
 

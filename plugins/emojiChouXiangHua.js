@@ -9,7 +9,7 @@
 // [public: true]
 // [priority: 0]
 // [class: 娱乐]
-// [icon: https://api.iconify.design/lucide:bot.svg]
+// [icon: https://cdn.jsdelivr.net/npm/@tabler/icons@latest/icons/puzzle.svg]
 // [origin: backup/emoji抽象化_v1.0.0_By.hdbjlizhe.py]
 // [depe: []]
 

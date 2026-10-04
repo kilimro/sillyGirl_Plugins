@@ -10,7 +10,7 @@
 // [public: true]
 // [priority: 55]
 // [class: 工具类]
-// [icon: https://api.iconify.design/lucide:apple.svg]
+// [icon: https://cdn.jsdelivr.net/npm/@tabler/icons@latest/icons/puzzle.svg]
 // [origin: backup/【插件】-森选直播_v1.5.3_By.huawei.py]
 // [depe: ["./mrconliAccountRuntime.js"]]
 

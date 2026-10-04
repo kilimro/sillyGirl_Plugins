@@ -9,7 +9,7 @@
 // [public: true]
 // [priority: 55]
 // [class: 任务]
-// [icon: https://api.iconify.design/lucide:milk.svg]
+// [icon: https://cdn.jsdelivr.net/npm/@tabler/icons@latest/icons/puzzle.svg]
 // [origin: backup/伊利QQ星_v1.1_By.8165799.py]
 // [depe: ["./mrconliAccountRuntime.js"]]
 

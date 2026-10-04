@@ -10,7 +10,7 @@
 // [public: true]
 // [priority: 51]
 // [class: 任务]
-// [icon: https://api.iconify.design/lucide:bot.svg]
+// [icon: https://cdn.jsdelivr.net/npm/@tabler/icons@latest/icons/settings.svg]
 // [origin: backup/某手极速版_v1.5_By.8165799.py]
 // [depe: ["./mrconliAccountRuntime.js"]]
 

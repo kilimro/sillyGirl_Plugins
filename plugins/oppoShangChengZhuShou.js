@@ -10,7 +10,7 @@
 // [public: true]
 // [priority: 55]
 // [class: 工具类]
-// [icon: https://api.iconify.design/simple-icons:oppo.svg]
+// [icon: https://cdn.jsdelivr.net/npm/@tabler/icons@latest/icons/puzzle.svg]
 // [origin: backup/oppo商城_v1.7_By.8165799.py]
 // [depe: ["./mrconliAccountRuntime.js"]]
 

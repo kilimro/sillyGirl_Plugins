@@ -12,7 +12,7 @@
 // [public: true]
 // [priority: 0]
 // [class: 工具]
-// [icon: https://api.iconify.design/lucide:link.svg]
+// [icon: https://cdn.jsdelivr.net/npm/@tabler/icons@latest/icons/shopping-cart.svg]
 // [origin: backup/jd_口令_v0.0.1_By.authook.py;backup/京东口令解析_v1.2.0_By.chuan.py;backup/口令解析_v1.2.4_By.qingge.js;backup/口令解析_v1.2.4_By.qingge.txt]
 // [depe: []]
 

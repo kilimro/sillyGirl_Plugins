@@ -9,7 +9,7 @@
 // [public: true]
 // [priority: 55]
 // [class: 工具类]
-// [icon: https://api.iconify.design/lucide:bike.svg]
+// [icon: https://cdn.jsdelivr.net/npm/@tabler/icons@latest/icons/puzzle.svg]
 // [origin: backup/台铃_v1.2.1_By.huawei.py]
 // [depe: ["./mrconliAccountRuntime.js"]]
 

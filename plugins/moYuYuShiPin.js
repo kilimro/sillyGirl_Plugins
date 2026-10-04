@@ -10,7 +10,7 @@
 // [public: true]
 // [priority: 100]
 // [class: 娱乐]
-// [icon: https://api.iconify.design/lucide:fish.svg]
+// [icon: https://cdn.jsdelivr.net/npm/@tabler/icons@latest/icons/puzzle.svg]
 // [origin: backup/摸鱼_v1.0.5_By.hdbjlizhe.txt;backup/摸鱼日报_vv1.0.0_By.960342874.txt;backup/小视频_v1.2_By.kevin.txt;backup/随机视频图集_v1.0.5_By.297129582.txt]
 // [depe: []]
 

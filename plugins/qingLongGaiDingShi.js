@@ -9,7 +9,7 @@
 // [public: true]
 // [priority: 0]
 // [class: 任务]
-// [icon: https://api.iconify.design/lucide:bot.svg]
+// [icon: https://cdn.jsdelivr.net/npm/@tabler/icons@latest/icons/clock.svg]
 // [origin: backup/青龙改定时_v0.0.7_By.sn_jmh.py]
 // [depe: []]
 

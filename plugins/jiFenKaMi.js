@@ -9,7 +9,7 @@
 // [public: true]
 // [priority: 0]
 // [class: 工具]
-// [icon: https://api.iconify.design/lucide:badge-dollar-sign.svg]
+// [icon: https://cdn.jsdelivr.net/npm/@tabler/icons@latest/icons/puzzle.svg]
 // [origin: backup/充值插件_v1.1.0_By.rujingxianghai.py;backup/卡密系统_v6.2_By.8165799.py;backup/支付接管_v1.0.4_By.yuhualhh.py;backup/收款助手_v4.0_By.zq8884.py;backup/积分卡密系统_v5.7_By.rujingxianghai.py;backup/充值_v1.0.4_By.hicong.txt]
 // [depe: ["./vortoUtils.js"]]
 

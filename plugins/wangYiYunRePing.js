@@ -9,7 +9,7 @@
 // [public: true]
 // [priority: 0]
 // [class: 娱乐]
-// [icon: https://api.iconify.design/lucide:music.svg]
+// [icon: https://cdn.jsdelivr.net/npm/@tabler/icons@latest/icons/puzzle.svg]
 // [origin: backup/网抑云热评_v1.0.0_By.qw21560.txt]
 // [depe: []]
 

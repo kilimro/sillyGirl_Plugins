@@ -10,7 +10,7 @@
 // [public: true]
 // [priority: 50]
 // [class: 任务]
-// [icon: https://api.iconify.design/lucide:bot.svg]
+// [icon: https://cdn.jsdelivr.net/npm/@tabler/icons@latest/icons/puzzle.svg]
 // [origin: backup/和合_v2.8_By.8165799.py;backup/和合天台_v2.7_By.8165799.py]
 // [depe: ["./mrconliAccountRuntime.js"]]
 

@@ -14,7 +14,7 @@
 // [public: true]
 // [priority: 99999999]
 // [class: 工具类]
-// [icon: https://api.iconify.design/lucide:apple.svg]
+// [icon: https://cdn.jsdelivr.net/npm/@tabler/icons@latest/icons/key.svg]
 // [carry: true]
 // [origin: backup/BBK拼车账密_v1.0.7_By.qingge.txt;backup/BBK账密登录_v1.0.0_By.qingge.js;backup/JD自动化登录_v1.0.0_By.qingge.txt;backup/JD自动化登录_v1.0.3_By.qingge.js;backup/Pro-账密登录_v1.5.5_By.qingge.txt;backup/QRabbitPro_v1.5.1_By.specter.txt;backup/QRabbitPro账密_v1.1.8_By.specter.py;backup/QRabbitPro账密_v1.2.0_By.specter.txt;backup/JD账密登录_v1.6.0_By.chuan.py;backup/NarkPro登录_v1.4.1_By.chuan.py;backup/京东登录_v3.3.0_By.97610325.py;backup/京东账密登录_v1.1.3_By.chuan.py;backup/兔子登录_v1.4.18_By.buzhi.txt]
 // [depe: []]
