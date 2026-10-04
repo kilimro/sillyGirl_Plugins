@@ -64,10 +64,10 @@ async function main() {
     return s.reply(`${go} → ${to} 没有查到车次`);
   }
 
-  const lines = [`🚄 ${data.go} → ${data.to}（${data.date}）`, ""];
+  const lines = [`${data.go} → ${data.to}（${data.date}）`, ""];
   const limit = Number(cfg.max_results) || 15;
   for (const train of data.list.slice(0, limit)) {
-    const prices = (train.prices || []).map((p) => `${p.name}${p.status === "有" ? "✓" : "⚠"}¥${p.price}`).join(" ");
+    const prices = (train.prices || []).map((p) => `${p.name}${p.status} ¥${p.price}`).join("  ");
     lines.push(
       `${train.TrainNumber} ${train.Depart}→${train.Dest} ${train.DepartTime}-${train.DestTime} ${train.TotalTime}\n  ${prices}`,
     );
