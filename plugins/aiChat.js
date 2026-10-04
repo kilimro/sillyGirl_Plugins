@@ -2,7 +2,7 @@
 // [name: aiChat]
 // [desc: 接入任意 OpenAI 兼容接口的 AI 助手。消息必须以 ai/AI/机器人/小助手 开头才会触发，其他命令走原插件不抢。要改触发词请编辑下方 [rule] 那一行的正则。支持 BaseURL/Key/模型/长系统提示词（变量插值）/上下文轮数/工具调用。]
 // [author: kilimro]
-// [version: v2.2.0]
+// [version: v2.2.1]
 // [rule: ^(ai|起床了绵绵|Ai|机器人|小助手)[，,、:：\s]*[\s\S]*$]
 // [status: true]
 // [admin: false]
@@ -74,8 +74,16 @@ const form = new plugin.Form({
   tts_voice_id: plugin.Form.string().title("TTS 音色 ID（MiniMax 用）").default("female-yujie"),
   tts_custom_base_url: plugin.Form.string()
     .title("自定义 TTS BaseURL（custom 模式用）")
-    .description("你的 TTS 接口地址，POST 文本返回音频 URL")
+    .description("你的 TTS 接口地址，GET 或 POST 返回音频 URL")
     .default(""),
+  tts_custom_method: plugin.Form.string()
+    .title("自定义 TTS 请求方式")
+    .description("GET 或 POST，默认 POST")
+    .default("POST"),
+  tts_custom_text_param: plugin.Form.string()
+    .title("文本参数名")
+    .description("GET query / POST body 里文本字段的 key，默认 text")
+    .default("text"),
   tts_custom_audio_path: plugin.Form.string()
     .title("自定义 TTS 音频 URL 字段路径")
     .description("返回 JSON 里音频 URL 的路径，如 data.audio 或 url")
@@ -346,6 +354,8 @@ async function main() {
                 provider: "custom",
                 custom: {
                   baseUrl: cfg.tts_custom_base_url,
+                  method: cfg.tts_custom_method,
+                  textParam: cfg.tts_custom_text_param,
                   audioUrlPath: cfg.tts_custom_audio_path || "url",
                   apiKey: cfg.tts_api_key,
                 },

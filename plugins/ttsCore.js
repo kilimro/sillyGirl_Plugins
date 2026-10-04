@@ -2,7 +2,7 @@
 // [name: ttsCore]
 // [desc: 文本转语音公共模块，支持 MiniMax 和自定义 HTTP TTS 接口，返回音频 URL 供 CQ:record 使用]
 // [author: kilimro]
-// [version: v2.0.0]
+// [version: v2.1.0]
 // [status: true]
 // [admin: false]
 // [public: true]
@@ -66,26 +66,36 @@ async function synthesizeMinimax(text, opts) {
 }
 
 // ===== Custom HTTP provider =====
-// opts.custom: { baseUrl, apiKey, audioUrlPath, extraBody }
+// opts.custom: { baseUrl, method: "GET"|"POST", apiKey, audioUrlPath, textParam, extraBody }
 async function synthesizeCustom(text, opts) {
   const custom = opts.custom || {};
-  const baseUrl = String(custom.baseUrl || "").replace(/\/+$/, "");
+  let baseUrl = String(custom.baseUrl || "").replace(/\/+$/, "");
   if (!baseUrl) throw new Error("custom TTS baseUrl 未配置");
 
-  const body = {
-    text,
-    ...(custom.extraBody || {}),
-  };
-
-  const headers = { "content-type": "application/json" };
+  const method = String(custom.method || "POST").toUpperCase();
+  const headers = {};
   if (custom.apiKey) headers.authorization = `Bearer ${custom.apiKey}`;
 
-  const res = await fetch(baseUrl, {
-    method: "POST",
-    headers,
-    body: JSON.stringify(body),
-    signal: AbortSignal.timeout(opts.timeout || DEFAULT_TIMEOUT),
-  });
+  let res;
+  if (method === "GET") {
+    const param = encodeURIComponent(custom.textParam || "text");
+    const sep = baseUrl.includes("?") ? "&" : "?";
+    baseUrl = `${baseUrl}${sep}${param}=${encodeURIComponent(text)}`;
+    res = await fetch(baseUrl, {
+      method: "GET",
+      headers,
+      signal: AbortSignal.timeout(opts.timeout || DEFAULT_TIMEOUT),
+    });
+  } else {
+    headers["content-type"] = "application/json";
+    const body = { [custom.textParam || "text"]: text, ...(custom.extraBody || {}) };
+    res = await fetch(baseUrl, {
+      method: "POST",
+      headers,
+      body: JSON.stringify(body),
+      signal: AbortSignal.timeout(opts.timeout || DEFAULT_TIMEOUT),
+    });
+  }
 
   if (!res.ok) {
     const errText = await res.text().catch(() => "");
