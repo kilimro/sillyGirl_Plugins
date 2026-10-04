@@ -2,7 +2,7 @@
 // [name: minimaxTTS]
 // [desc: 发"说你好"把文字转成语音，通过 CQ:record 回复。音色/模型/语速可配置。]
 // [author: kilimro]
-// [version: v1.0.0]
+// [version: v2.0.0]
 // [rule: ^说(.+)$]
 // [status: true]
 // [admin: false]
@@ -21,14 +21,14 @@ const form = new plugin.Form({
   model: plugin.Form.string()
     .title("模型")
     .description("speech-2.8-hd 最高质量，speech-2.8-turbo 更快更便宜")
-    .default(tts.DEFAULT_MODEL)
+    .default("speech-2.8-hd")
     .required(),
   voice_id: plugin.Form.string()
     .title("音色 ID")
     .description("默认 female-yujie（御姐）。其他音色见 https://platform.minimax.cn/docs/faq/system-voice-id")
-    .default(tts.DEFAULT_VOICE_ID)
+    .default("female-yujie")
     .required(),
-  speed: plugin.Form.number().title("语速").min(0.5).max(2).default(tts.DEFAULT_SPEED),
+  speed: plugin.Form.number().title("语速").min(0.5).max(2).default(1.0),
 });
 
 let cfg = {};
@@ -44,6 +44,7 @@ async function main() {
 
   try {
     const url = await tts.synthesize(text, {
+      provider: "minimax",
       apiKey: cfg.api_key,
       model: cfg.model,
       voiceId: cfg.voice_id,

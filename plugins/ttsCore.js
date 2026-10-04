@@ -1,8 +1,8 @@
 // [title: TTS 语音合成公共模块]
 // [name: ttsCore]
-// [desc: 文本转语音公共模块，当前接入 MiniMax t2a_v2，返回音频 URL 供 CQ:record 使用；后续可扩展其他 TTS 提供商]
+// [desc: 文本转语音公共模块，支持 MiniMax 和自定义 HTTP TTS 接口，返回音频 URL 供 CQ:record 使用]
 // [author: kilimro]
-// [version: v1.0.0]
+// [version: v2.0.0]
 // [status: true]
 // [admin: false]
 // [public: true]
@@ -16,26 +16,20 @@
 
 "use strict";
 
-const DEFAULT_BASE_URL = "https://api.minimax.cn";
-const DEFAULT_MODEL = "speech-2.8-hd";
-const DEFAULT_VOICE_ID = "female-yujie";
-const DEFAULT_SPEED = 1.0;
 const DEFAULT_TIMEOUT = 30000;
 
-// 用 MiniMax t2a_v2 把文本合成语音，返回音频 URL
-// opts: { baseUrl, apiKey, model, voiceId, speed, timeout }
-async function synthesize(text, opts) {
-  const content = String(text || "").trim();
-  if (!content) throw new Error("待合成文本为空");
+// ===== MiniMax provider =====
+const MINIMAX_BASE = "https://api.minimax.cn";
 
-  const baseUrl = String(opts.baseUrl || DEFAULT_BASE_URL).replace(/\/+$/, "");
+async function synthesizeMinimax(text, opts) {
+  const baseUrl = String(opts.baseUrl || MINIMAX_BASE).replace(/\/+$/, "");
   const body = {
-    model: String(opts.model || DEFAULT_MODEL),
-    text: content,
+    model: opts.model || "speech-2.8-hd",
+    text,
     stream: false,
     voice_setting: {
-      voice_id: String(opts.voiceId || DEFAULT_VOICE_ID),
-      speed: Number(opts.speed || DEFAULT_SPEED),
+      voice_id: opts.voiceId || "female-yujie",
+      speed: Number(opts.speed || 1),
       vol: 1,
       pitch: 0,
     },
@@ -62,7 +56,6 @@ async function synthesize(text, opts) {
     const errText = await res.text().catch(() => "");
     throw new Error(`MiniMax TTS HTTP ${res.status}: ${errText.slice(0, 200)}`);
   }
-
   const data = await res.json();
   if (data?.base_resp?.status_code && data.base_resp.status_code !== 0) {
     throw new Error(`MiniMax TTS 错误：${data.base_resp.status_msg || "unknown"}`);
@@ -72,10 +65,57 @@ async function synthesize(text, opts) {
   return url;
 }
 
+// ===== Custom HTTP provider =====
+// opts.custom: { baseUrl, apiKey, audioUrlPath, extraBody }
+async function synthesizeCustom(text, opts) {
+  const custom = opts.custom || {};
+  const baseUrl = String(custom.baseUrl || "").replace(/\/+$/, "");
+  if (!baseUrl) throw new Error("custom TTS baseUrl 未配置");
+
+  const body = {
+    text,
+    ...(custom.extraBody || {}),
+  };
+
+  const headers = { "content-type": "application/json" };
+  if (custom.apiKey) headers.authorization = `Bearer ${custom.apiKey}`;
+
+  const res = await fetch(baseUrl, {
+    method: "POST",
+    headers,
+    body: JSON.stringify(body),
+    signal: AbortSignal.timeout(opts.timeout || DEFAULT_TIMEOUT),
+  });
+
+  if (!res.ok) {
+    const errText = await res.text().catch(() => "");
+    throw new Error(`Custom TTS HTTP ${res.status}: ${errText.slice(0, 200)}`);
+  }
+  const data = await res.json();
+  const path = String(custom.audioUrlPath || "url").split(".");
+  let node = data;
+  for (const key of path) {
+    node = node?.[key];
+    if (node === undefined || node === null) break;
+  }
+  if (!node || typeof node !== "string") {
+    throw new Error(`Custom TTS 返回里找不到音频 URL（路径 ${custom.audioUrlPath}）`);
+  }
+  return node;
+}
+
+// ===== 统一入口 =====
+// opts: { provider: "minimax"|"custom", ...minimaxOpts, custom: {...} }
+async function synthesize(text, opts) {
+  const content = String(text || "").trim();
+  if (!content) throw new Error("待合成文本为空");
+
+  const provider = String(opts.provider || "minimax");
+  if (provider === "custom") return synthesizeCustom(content, opts);
+  return synthesizeMinimax(content, opts);
+}
+
 module.exports = {
   synthesize,
-  DEFAULT_BASE_URL,
-  DEFAULT_MODEL,
-  DEFAULT_VOICE_ID,
-  DEFAULT_SPEED,
+  DEFAULT_TIMEOUT,
 };

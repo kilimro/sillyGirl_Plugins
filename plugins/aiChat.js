@@ -2,7 +2,7 @@
 // [name: aiChat]
 // [desc: 接入任意 OpenAI 兼容接口的 AI 助手。消息必须以 ai/AI/机器人/小助手 开头才会触发，其他命令走原插件不抢。要改触发词请编辑下方 [rule] 那一行的正则。支持 BaseURL/Key/模型/长系统提示词（变量插值）/上下文轮数/工具调用。]
 // [author: kilimro]
-// [version: v2.1.3]
+// [version: v2.2.0]
 // [rule: ^(ai|起床了绵绵|Ai|机器人|小助手)[，,、:：\s]*[\s\S]*$]
 // [status: true]
 // [admin: false]
@@ -16,6 +16,7 @@
 const { sender: s, Bucket, plugin } = require("sillygirl");
 const ai = require("./openaiChatCore.js");
 const mem = require("./memoryCore.js");
+const tts = require("./ttsCore.js");
 
 const HISTORY_BUCKET = "openai_chat_history";
 const MAX_CONTENT_LEN = 1500;
@@ -60,6 +61,25 @@ const form = new plugin.Form({
   timeout: plugin.Form.integer().title("请求超时毫秒").min(5000).max(180000).default(60000),
   enable_group: plugin.Form.boolean().title("群聊启用").default(true),
   enable_private: plugin.Form.boolean().title("私聊启用").default(true),
+  reply_mode: plugin.Form.string()
+    .title("回复模式")
+    .description("text=文字回复（默认）；voice=语音回复（需要配置下面的 TTS）")
+    .default("text"),
+  tts_provider: plugin.Form.string()
+    .title("TTS 提供商")
+    .description("minimax=MiniMax t2a_v2；custom=自定义 HTTP TTS 接口")
+    .default("minimax"),
+  tts_api_key: plugin.Form.string().title("TTS API Key（MiniMax 用）").default(""),
+  tts_model: plugin.Form.string().title("TTS 模型（MiniMax 用）").default("speech-2.8-hd"),
+  tts_voice_id: plugin.Form.string().title("TTS 音色 ID（MiniMax 用）").default("female-yujie"),
+  tts_custom_base_url: plugin.Form.string()
+    .title("自定义 TTS BaseURL（custom 模式用）")
+    .description("你的 TTS 接口地址，POST 文本返回音频 URL")
+    .default(""),
+  tts_custom_audio_path: plugin.Form.string()
+    .title("自定义 TTS 音频 URL 字段路径")
+    .description("返回 JSON 里音频 URL 的路径，如 data.audio 或 url")
+    .default("url"),
 });
 
 const historyStore = new Bucket(HISTORY_BUCKET);
@@ -317,7 +337,33 @@ async function main() {
     history.push({ role: "user", content: promptText });
     history.push({ role: "assistant", content: replyText });
     await saveHistory(key, history);
-    await s.reply(replyText);
+    // 语音回复模式
+    if (cfg.reply_mode === "voice") {
+      try {
+        const ttsOpts =
+          cfg.tts_provider === "custom"
+            ? {
+                provider: "custom",
+                custom: {
+                  baseUrl: cfg.tts_custom_base_url,
+                  audioUrlPath: cfg.tts_custom_audio_path || "url",
+                  apiKey: cfg.tts_api_key,
+                },
+              }
+            : {
+                provider: "minimax",
+                apiKey: cfg.tts_api_key,
+                model: cfg.tts_model,
+                voiceId: cfg.tts_voice_id,
+              };
+        const audioUrl = await tts.synthesize(replyText, ttsOpts);
+        await s.reply(`[CQ:record,url=${audioUrl}]`);
+      } catch (ttsErr) {
+        await s.reply(`语音合成失败，文字回复：${replyText}`);
+      }
+    } else {
+      await s.reply(replyText);
+    }
     // 同步提取记忆（await 确保存上）
     if (cfg.enable_memory) {
       try {
