@@ -2,7 +2,7 @@
 // [name: openaiChatCore]
 // [desc: OpenAI 兼容 /chat/completions 调用、消息历史裁剪与超时重试公共能力，供 AI 聊天插件复用]
 // [author: kilimro]
-// [version: v1.0.0]
+// [version: v1.0.1]
 // [status: true]
 // [admin: false]
 // [public: true]
@@ -29,7 +29,8 @@ const DEFAULT_SYSTEM_PROMPT = [
   "2. 不要主动说自己是 AI 或语言模型；",
   "3. 可以偶尔接梗、玩梗，但不抬杠、不人身攻击；",
   "4. 不知道就直接说不知道，不要编造事实；",
-  "5. 不要重复用户刚说的话。",
+  "5. 不要重复用户刚说的话；",
+  "6. 不要输出任何动作描写、心理活动描写，不要用 *xxx* 斜体演剧情，直接说人话。",
 ].join("\n");
 
 function normalizeBaseUrl(value) {
