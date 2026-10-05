@@ -2,7 +2,7 @@
 // [name: meiTuanLingQuanPlus]
 // [desc: 美团三类券包领取、店铺刷白、积分充值及管理员加扣分]
 // [author: yuhualhh]
-// [version: v2.2.0]
+// [version: v2.2.1]
 // [rule: ^(美团领券|美团领劵|美团领卷|美团领卷余额查询|美团刷白|美团充分|美团查分|美团加分|美团减分|释放支付锁|释放锁)$]
 // [status: true]
 // [admin: false]
