@@ -2,7 +2,7 @@
 // [name: jdYingYongBaoDengLu]
 // [desc: 对接 yyb-py 应用宝微信扫码，换取 pt_key/pt_pin 并同步青龙]
 // [author: Mianpro官方]
-// [version: v3.0.1]
+// [version: v3.0.2]
 // [rule: ^(应用宝登录|应用宝扫码|京东微信登录|扫码登录)$]
 // [status: true]
 // [admin: false]
@@ -97,12 +97,13 @@ async function exchangeJdCookie(yybUrl, licenseKey, openid) {
   const codeRes = await fetch(`${yybUrl}/api/yyb/get-code`, {
     method: "POST",
     headers: { "Content-Type": "application/json", "X-License-Key": licenseKey },
-    body: JSON.stringify({ ref, app_id: JD_APPID_PUB }),
+    body: JSON.stringify({ openid, appid: JD_APPID_PUB }),
     signal: AbortSignal.timeout(30000),
   });
   const codeJson = await codeRes.json();
-  if ((codeJson?.code ?? -1) !== 0) throw new Error(`获取微信code失败: [${codeJson?.code}] ${codeJson?.msg || ""}`);
-  const code = codeJson?.data?.result?.code || codeJson?.data?.code;
+  if (!codeJson?.success)
+    throw new Error(`获取微信code失败: ${codeJson?.error || codeJson?.msg || JSON.stringify(codeJson).slice(0, 200)}`);
+  const code = codeJson.code;
   if (!code) throw new Error("未拿到有效微信code");
 
   // 3. 获取指纹 token
