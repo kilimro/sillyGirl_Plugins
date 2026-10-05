@@ -2,7 +2,7 @@
 // [name: jdYingYongBaoDengLu]
 // [desc: 对接 YYB Go 应用宝微信扫码服务，换取 pt_key/pt_pin、绑定用户并同步青龙]
 // [author: 1934103887,97610325]
-// [version: v2.1.1]
+// [version: v2.1.2]
 // [rule: ^(应用宝登录|应用宝扫码|微信Code登录|京东微信登录)$]
 // [status: true]
 // [admin: false]
@@ -54,8 +54,7 @@ async function main() {
     const ql = new container.QingLong({ id: cfg.qinglongId }),
       pin = core.ptPin(cookie);
     const result = await core.upsertEnv(ql, { name: cfg.envName, value: cookie, remarks: core.decode(pin) });
-    const userId = String((await s.getUserId()) || ""),
-      platform = String((await s.getPlatform()) || "");
+    const platform = String((await s.getPlatform()) || "");
     notify.set(
       pin,
       JSON.stringify({ user_id: userId, imType: platform, nickname: core.decode(pin), updated_at: Date.now() }),
