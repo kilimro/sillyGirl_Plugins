@@ -109,7 +109,8 @@ async function coupon() {
     ),
     item = available[n - 1];
   if (!item) throw new Error("项目选择无效");
-  const raw = await prompt("请输入带token的美团账号链接或Token", 120000);
+  const raw = await prompt(`请输入带token的美团账号链接或Token\n获取方法参考下图：`, 120000);
+  await s.reply(utils.image("https://img.550035131.xyz/MIANPRO/%E7%BE%8E%E5%9B%A2.png"));
   if (!raw || !String(raw).toLowerCase().includes("token")) throw new Error("美团账号链接不正确");
   const userId = await uid(),
     old = await balance(userId);
