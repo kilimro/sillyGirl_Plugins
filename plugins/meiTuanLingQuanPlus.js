@@ -2,7 +2,7 @@
 // [name: meiTuanLingQuanPlus]
 // [desc: 美团三类券包领取、店铺刷白、积分充值及管理员加扣分]
 // [author: yuhualhh]
-// [version: v2.2.1]
+// [version: v2.2.2]
 // [rule: ^(美团领券|美团领劵|美团领卷|美团领卷余额查询|美团刷白|美团充分|美团查分|美团加分|美团减分|释放支付锁|释放锁)$]
 // [status: true]
 // [admin: false]
@@ -109,8 +109,8 @@ async function coupon() {
     ),
     item = available[n - 1];
   if (!item) throw new Error("项目选择无效");
-  const raw = await prompt(`请输入带token的美团账号链接或Token\n获取方法参考下图：`, 120000);
   await s.reply(utils.image("https://img.550035131.xyz/MIANPRO/%E7%BE%8E%E5%9B%A2.png"));
+  const raw = await prompt(`请输入带token的美团账号链接或Token\n获取方法参考上图：`, 120000);
   if (!raw || !String(raw).toLowerCase().includes("token")) throw new Error("美团账号链接不正确");
   const userId = await uid(),
     old = await balance(userId);
