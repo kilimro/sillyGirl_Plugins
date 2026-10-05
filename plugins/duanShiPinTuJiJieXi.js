@@ -2,7 +2,7 @@
 // [name: duanShiPinTuJiJieXi]
 // [desc: 解析抖音、快手、微博、皮皮虾、西瓜、小红书、哔哩哔哩等平台视频和图集]
 // [author: 297129582]
-// [version: v2.0.2]
+// [version: v2.0.3]
 // [rule: raw (https?://\S+(?:douyin\.com|kuaishou\.com|chenzhongtech\.com|kuai-fei\.com|weibo\.com|t\.cn|pipix\.com|pipigx\.com|ixigua\.com|xhslink\.com|xiaohongshu\.com|bilibili\.com|b23\.tv|bili2233\.cn)\S*)]
 // [rule: ^短视频图集解析$]
 // [status: true]
@@ -41,8 +41,6 @@ async function main() {
   if (content === "短视频图集解析") return configure(chatId);
   const match = content.match(/https?:\/\/[^\s"'<>]+/i);
   if (!match) return;
-  if (isPrivate && !cfg.enable_private) return;
-  if (!isPrivate && !cfg.enable_group) return;
   await s.reply("处理中...");
   const data = await parseMedia(match[0].replace(/\\/g, ""), cfg);
   if (Number(data?.code) !== 200) throw new Error(data?.msg || "解析失败，视频不存在或接口失效");
