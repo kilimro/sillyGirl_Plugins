@@ -1,7 +1,7 @@
 // [title: 车站大屏]
 // [name: cheZhanDaPing]
 // [desc: 查车站发车大屏。发"大屏北京"查看北京站实时发车信息。]
-// [author: kilimro]
+// [author: Mianpro官方]
 // [version: v1.0.0]
 // [rule: ^大屏(.+)$]
 // [status: true]

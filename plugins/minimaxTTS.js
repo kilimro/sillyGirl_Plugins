@@ -1,7 +1,7 @@
 // [title: MiniMax 语音合成]
 // [name: minimaxTTS]
 // [desc: 发"说你好"把文字转成语音，通过 CQ:record 回复。音色/模型/语速可配置。]
-// [author: kilimro]
+// [author: Mianpro官方]
 // [version: v2.0.0]
 // [rule: ^说(.+)$]
 // [status: true]

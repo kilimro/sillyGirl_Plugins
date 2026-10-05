@@ -1,7 +1,7 @@
 // [title: OpenAI 对话公共模块]
 // [name: openaiChatCore]
 // [desc: OpenAI 兼容 /chat/completions 调用、消息历史裁剪与超时重试公共能力，供 AI 聊天插件复用]
-// [author: kilimro]
+// [author: Mianpro官方]
 // [version: v1.0.1]
 // [status: true]
 // [admin: false]

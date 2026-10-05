@@ -1,7 +1,7 @@
 // [title: TTS 语音合成公共模块]
 // [name: ttsCore]
 // [desc: 文本转语音公共模块，支持 MiniMax 和自定义 HTTP TTS 接口，返回音频 URL 供 CQ:record 使用]
-// [author: kilimro]
+// [author: Mianpro官方]
 // [version: v2.1.0]
 // [status: true]
 // [admin: false]

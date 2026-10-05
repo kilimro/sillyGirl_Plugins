@@ -1,7 +1,7 @@
 // [title: AI 聊天助手]
 // [name: aiChat]
 // [desc: 接入任意 OpenAI 兼容接口的 AI 助手。消息必须以 ai/AI/机器人/小助手 开头才会触发，其他命令走原插件不抢。要改触发词请编辑下方 [rule] 那一行的正则。支持 BaseURL/Key/模型/长系统提示词（变量插值）/上下文轮数/工具调用。]
-// [author: kilimro]
+// [author: Mianpro官方]
 // [version: v2.2.1]
 // [rule: ^(ai|起床了绵绵|Ai|机器人|小助手)[，,、:：\s]*[\s\S]*$]
 // [status: true]

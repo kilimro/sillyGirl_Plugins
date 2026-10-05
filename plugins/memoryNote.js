@@ -1,7 +1,7 @@
 // [title: 我的记忆]
 // [name: memoryNote]
 // [desc: 查看/管理 AI 记住的关于你的信息。私聊群聊均可，只能看自己的；AI 聊天时提到的个人信息会自动记下，也可手动「记一下XX是XX」。]
-// [author: kilimro]
+// [author: Mianpro官方]
 // [version: v1.1.0]
 // [rule: ^(?:我的记忆|查看我的记忆|记忆列表|记忆)$]
 // [rule: ^(?:记一下|记下).+$]

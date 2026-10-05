@@ -1,7 +1,7 @@
 // [title: AI 画画]
 // [name: aiDraw]
 // [desc: 发"画一只猫"AI 生成图片。支持 MiniMax 和 OpenAI 兼容接口，每人每天限次。]
-// [author: kilimro]
+// [author: Mianpro官方]
 // [version: v1.0.0]
 // [rule: ^画(.+)$]
 // [status: true]

@@ -1,7 +1,7 @@
 // [title: 记忆存储模块]
 // [name: memoryCore]
 // [desc: 用户记忆存储与 AI 提取公共模块，供 aiChat 和 memoryNote 共用]
-// [author: kilimro]
+// [author: Mianpro官方]
 // [version: v1.0.1]
 // [status: true]
 // [admin: false]

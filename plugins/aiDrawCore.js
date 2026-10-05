@@ -1,7 +1,7 @@
 // [title: AI 画图公共模块]
 // [name: aiDrawCore]
 // [desc: 文生图公共模块，支持 MiniMax image_generation 和 OpenAI 兼容 /v1/images/generations，返回图片 URL 列表]
-// [author: kilimro]
+// [author: Mianpro官方]
 // [version: v1.0.0]
 // [status: true]
 // [admin: false]
