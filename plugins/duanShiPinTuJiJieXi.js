@@ -2,7 +2,7 @@
 // [name: duanShiPinTuJiJieXi]
 // [desc: 解析抖音、快手、微博、皮皮虾、西瓜、小红书、哔哩哔哩等平台视频和图集]
 // [author: 297129582]
-// [version: v2.0.0]
+// [version: v2.0.1]
 // [rule: raw (https?://\S+(?:douyin\.com|kuaishou\.com|chenzhongtech\.com|kuai-fei\.com|weibo\.com|t\.cn|pipix\.com|pipigx\.com|ixigua\.com|xhslink\.com|xiaohongshu\.com|bilibili\.com|b23\.tv|bili2233\.cn)\S*)]
 // [rule: ^短视频图集解析$]
 // [status: true]
@@ -39,6 +39,7 @@ async function main() {
   if (!match) return;
   const enabled = await settings.get(`enabled:${chatId}`, chatId === "private" ? "true" : "false");
   if (enabled !== "true") return;
+  await s.reply("处理中...");
   const data = await parseMedia(match[0].replace(/\\/g, ""), cfg);
   if (Number(data?.code) !== 200) throw new Error(data?.msg || "解析失败，视频不存在或接口失效");
   // 新 API 适配：图集用 images 数组，视频用 video/videoUrl
@@ -51,7 +52,7 @@ async function main() {
   if (images.length) return sendImages(images, cfg);
   const video = data.video || data.videoUrl || data.downloadUrl || data.url;
   if (!video) throw new Error("接口没有返回视频地址");
-  return s.reply(utils.video(await maybeShort(String(video), cfg)));
+  return s.reply(await maybeShort(String(video), cfg));
 }
 
 async function configure(chatId) {
