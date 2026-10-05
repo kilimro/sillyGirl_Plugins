@@ -1,8 +1,8 @@
 // [title: 快递查询]
 // [name: kuaidiChaXun]
-// [desc: 发"查快递773443987038423"查快递物流，自动识别快递公司]
+// [desc: 发"查快递773443987038423"查快递物流，需配置快递公司代码]
 // [author: Mianpro官方]
-// [version: v1.0.2]
+// [version: v1.0.3]
 // [rule: ^查快递(.+)$]
 // [status: true]
 // [admin: false]
@@ -17,6 +17,12 @@ const { sender: s, plugin } = require("sillygirl");
 
 const form = new plugin.Form({
   api_key: plugin.Form.string().title("API Key (id)").default("").required(),
+  com: plugin.Form.string()
+    .title("快递公司代码")
+    .description(
+      "shentong=申通, yuantong=圆通, shunfeng=顺丰, yunda=韵达, zhongtong=中通, ems=EMS, jd=京东, youzhengguonei=邮政",
+    )
+    .default("shentong"),
 });
 
 async function main() {
@@ -30,7 +36,7 @@ async function main() {
   if (!nu) return;
 
   try {
-    const url = `http://api.kuaidi.com/openapi.html?id=${cfg.api_key}&nu=${encodeURIComponent(nu)}&show=0&muti=1&order=desc`;
+    const url = `http://api.kuaidi.com/openapi.html?id=${cfg.api_key}&com=${cfg.com}&nu=${encodeURIComponent(nu)}&show=0&muti=1&order=desc`;
     const res = await fetch(url, {
       signal: AbortSignal.timeout(10000),
       headers: { "user-agent": "Mozilla/5.0" },
