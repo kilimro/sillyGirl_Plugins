@@ -1,128 +1,280 @@
 // [title: 京东应用宝登录]
 // [name: jdYingYongBaoDengLu]
-// [desc: 对接 YYB Go 应用宝微信扫码服务，换取 pt_key/pt_pin、绑定用户并同步青龙]
-// [author: 1934103887,97610325]
-// [version: v2.2.1]
-// [rule: ^(应用宝登录|应用宝扫码|微信Code登录|京东微信登录)$]
+// [desc: 对接 yyb-py 应用宝微信扫码，换取 pt_key/pt_pin 并同步青龙]
+// [author: Mianpro官方]
+// [version: v3.0.0]
+// [rule: ^(应用宝登录|应用宝扫码|京东微信登录|扫码登录)$]
 // [status: true]
 // [admin: false]
 // [public: true]
 // [priority: 101]
-// [class: 工具类]
+// [class: 工具]
 // [icon: https://www.jd.com/favicon.ico]
 // [carry: true]
-// [origin: backup/京东应用宝协议_v2.0.0_By.1934103887.py;backup/京东登录_v3.3.0_By.97610325.py]
 // [depe: ["./jdLegacyCore.js"]]
 
 "use strict";
+const crypto = require("crypto");
 const { Bucket, container, plugin, sender: s, utils } = require("sillygirl");
 const core = require("./jdLegacyCore.js");
 const notify = new Bucket("jdNotify"),
   accounts = new Bucket("jdYingYongBaoDengLu");
+
 const form = new plugin.Form({
-  yyb_url: plugin.Form.string().title("YYB Go 服务地址").default("http://127.0.0.1:18080"),
+  yyb_url: plugin.Form.string().title("yyb-py 服务地址").default("https://yyb.920pdd.com"),
+  license_key: plugin.Form.string().title("授权码 License Key").default("").required(),
   qinglong_id: plugin.Form.integer().title("青龙编号").min(1).default(1),
   env_name: plugin.Form.string().title("Cookie 环境变量名").default("JD_COOKIE"),
   wait_seconds: plugin.Form.integer().title("扫码等待秒数").min(30).max(600).default(120),
-  poll_seconds: plugin.Form.integer().title("轮询间隔秒数").min(1).max(15).default(2),
+  poll_seconds: plugin.Form.integer().title("轮询间隔秒数").min(1).max(15).default(3),
 });
 
+/* ---- 京东协议常量 ---- */
+const JD_APPID_PUB = "wx73247c7819d61796";
+const JD_APPID_CONST = "599";
+const JD_CLIENT_VER = "2.0.2";
+const JD_SIGN_GSALT = "sb2cwlYyaCSN1KUv5RHG3tmqxfEb8NKN";
+const JD_FINGER_BIZ_KEY = "bce044c839bb9eb811aad5af18a629e199da4e13";
+const JD_REFERER = `https://servicewechat.com/${JD_APPID_PUB}/864/page-frame.html`;
+const JD_UA =
+  "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/132.0.0.0 Safari/537.36 MicroMessenger/7.0.20.1781(0x6700143B) NetType/WIFI MiniProgramEnv/Windows WindowsWechat/WMPF WindowsWechat(0x63090a13) UnifiedPCWindowsWechat(0xf254186b) XWEB/19481";
+const JD_FINGER_TK_DEFAULT = "L64RTJ562VJEYNEQN67XMUWSR4UFLOIQHJYZ3MWERRIKJGP24SDSBDS4I4AMVU24Y3Y7A4UPDICN2";
+const JD_FINGER_ALPHABET = "23IL<N01c7KvwZO56RSTAfghiFyzWJqVabGH4PQdopUrsCuX*xeBjkltDEmn89.-";
+
+function jdMd5(str) {
+  return crypto.createHash("md5").update(String(str), "utf8").digest("hex");
+}
+function jdRandHex(n) {
+  return crypto.randomBytes(n).toString("hex");
+}
+function jdFingerEncode(obj) {
+  const text = encodeURIComponent(JSON.stringify(obj));
+  let out = "",
+    i = 0;
+  do {
+    const e = text.charCodeAt(i++);
+    const r = text.charCodeAt(i++);
+    const u = text.charCodeAt(i++);
+    const a = e >> 2;
+    const c = ((3 & e) << 4) | (r >> 4);
+    let t = ((15 & r) << 2) | (u >> 6);
+    let f = 63 & u;
+    if (Number.isNaN(r)) t = f = 64;
+    else if (Number.isNaN(u)) f = 64;
+    out +=
+      JD_FINGER_ALPHABET.charAt(a) +
+      JD_FINGER_ALPHABET.charAt(c) +
+      JD_FINGER_ALPHABET.charAt(t) +
+      JD_FINGER_ALPHABET.charAt(f);
+  } while (i < text.length);
+  return out + "/";
+}
+
+async function jdFetch(url, options = {}) {
+  const res = await fetch(url, {
+    signal: AbortSignal.timeout(options.timeout || 20000),
+    ...options,
+  });
+  return res;
+}
+
+/* 从 openid 换京东 cookie */
+async function exchangeJdCookie(yybUrl, licenseKey, openid) {
+  // 1. 先从 /accounts 找 openid 对应的账号 id
+  let ref = openid;
+  try {
+    const r = await fetch(`${yybUrl}/accounts?licenseKey=${encodeURIComponent(licenseKey)}`, {
+      signal: AbortSignal.timeout(15000),
+    });
+    const j = await r.json();
+    if (j?.code === 0 && Array.isArray(j.data)) {
+      const acc = j.data.find((a) => (a.openid || "") === openid);
+      if (acc?.id) ref = String(acc.id);
+    }
+  } catch (_) {}
+
+  // 2. 调 /api/yyb/get-code 拿微信小程序 code
+  const codeRes = await fetch(`${yybUrl}/api/yyb/get-code`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "X-License-Key": licenseKey },
+    body: JSON.stringify({ ref, app_id: JD_APPID_PUB }),
+    signal: AbortSignal.timeout(30000),
+  });
+  const codeJson = await codeRes.json();
+  if ((codeJson?.code ?? -1) !== 0) throw new Error(`获取微信code失败: [${codeJson?.code}] ${codeJson?.msg || ""}`);
+  const code = codeJson?.data?.result?.code || codeJson?.data?.code;
+  if (!code) throw new Error("未拿到有效微信code");
+
+  // 3. 获取指纹 token
+  const now = Date.now();
+  const env = {
+    sv: "1.0.3.4",
+    clist: now,
+    vlv: "3.16.0",
+    ve: "4.1.8.107",
+    fs: -1,
+    la: "zh_CN",
+    br: "microsoft",
+    mo: "microsoft",
+    pr: 1,
+    pl: "windows",
+    sh: 780,
+    sw: 414,
+    sbh: "",
+    sy: "Windows 10",
+    wh: 780,
+    ww: 414,
+    bl: "",
+    nt: "wifi",
+    vid: JD_APPID_PUB,
+    bk: JD_FINGER_BIZ_KEY,
+    cliet: now,
+    fp: jdRandHex(16),
+  };
+  const fingerRes = await fetch(`https://we.jd.com/stone/1/${JD_FINGER_TK_DEFAULT}`, {
+    method: "POST",
+    headers: { "User-Agent": JD_UA, Referer: JD_REFERER, "Content-Type": "application/json", Accept: "*/*" },
+    body: jdFingerEncode(env),
+    signal: AbortSignal.timeout(15000),
+  });
+  const fingerJson = await fingerRes.json();
+  const eidToken = fingerJson?.data?.tk || fingerJson?.tk || "";
+
+  // 4. silentauthlogin 换 pt_key/pt_pin
+  const ts = Math.floor(Date.now() / 1000);
+  const signData = {
+    globalTokenSource: "",
+    code,
+    token: "",
+    salt: "",
+    user_data: "",
+    user_iv: "",
+    eid_token: eidToken,
+    goToLogin: true,
+    returnurl: "/pages/login/web-view/web-view",
+    wxappid: JD_APPID_PUB,
+    appid: JD_APPID_CONST,
+    client_ver: JD_CLIENT_VER,
+    ts,
+  };
+  const order = ["appid", "wxappid", "client_ver", "ts", "cmd", "sub_cmd", "gsalt"];
+  const extra = { cmd: 52, sub_cmd: 1, gsalt: JD_SIGN_GSALT };
+  const raw = order
+    .map((k) => (signData[k] != null && signData[k] !== "" ? signData[k] : extra[k] != null ? extra[k] : ""))
+    .join("");
+  signData.sign = jdMd5(raw);
+
+  const loginRes = await fetch("https://wxapplogin.m.jd.com/cgi-bin/jxpp/silentauthlogin", {
+    method: "POST",
+    headers: {
+      "User-Agent": JD_UA,
+      Referer: JD_REFERER,
+      "Content-Type": "application/x-www-form-urlencoded",
+      cookie: "guid=; pt_pin=; pt_key=; pt_token;",
+      Accept: "*/*",
+    },
+    body: new URLSearchParams(signData).toString(),
+    signal: AbortSignal.timeout(20000),
+  });
+  const loginOut = await loginRes.json();
+  if (loginOut?.err_code !== 0 || !loginOut?.pt_key || !loginOut?.pt_pin)
+    throw new Error(`京东登录失败: ${JSON.stringify(loginOut).slice(0, 300)}`);
+
+  return {
+    pt_key: loginOut.pt_key,
+    pt_pin: loginOut.pt_pin,
+    ck: `pt_key=${loginOut.pt_key};pt_pin=${loginOut.pt_pin};`,
+  };
+}
+
 async function main() {
-  const cfg = normalize((await form.get()) || {});
+  const cfg = (await form.get()) || {};
+  const yybUrl = String(cfg.yyb_url || "").replace(/\/+$/, "");
+  const licenseKey = String(cfg.license_key || "").trim();
+  if (!yybUrl || !licenseKey) return s.reply("请先配置 yyb-py 地址和授权码");
+
   try {
     const chatId = String((await s.getChatId()) || "");
     const userId = String((await s.getUserId()) || "");
     if (chatId && chatId !== userId) return s.reply("应用宝扫码登录请私聊机器人使用");
-    const qr = await yybRequest(cfg, "/qr?as_base64=true", "POST");
-    const sessionId = qr.session_id || qr.sessionId;
-    if (!sessionId) throw new Error("扫码服务未返回 session_id");
-    const imageUrl = absolute(cfg.yybUrl, qr.image_url || qr.imageUrl || qr.qrcode_url || qr.qr_url || "");
-    if (imageUrl) await s.reply(utils.image(imageUrl));
-    else await s.reply(`请使用微信扫码：${qr.url || qr.qrcode || qr.qr_url || sessionId}`);
-    await s.reply("扫码后请在手机确认，正在等待应用宝授权……");
-    const confirmed = await waitConfirmed(cfg, sessionId);
-    const openid =
-      confirmed.openid || confirmed.openId || confirmed.ref || confirmed.account?.openid || confirmed.data?.openid;
-    if (!openid) throw new Error("确认结果缺少 openid/ref");
-    const exchanged = await yybRequest(cfg, "/jd/pt/exchange", "POST", { ref: openid });
-    const cookie = core.normalizeCookie(
-      exchanged.ck || exchanged.cookie || `pt_key=${exchanged.pt_key};pt_pin=${exchanged.pt_pin};`,
-    );
+
+    // 1. 创建扫码会话
+    await s.reply("正在生成二维码...");
+    const startRes = await fetch(`${yybUrl}/api/login/start`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "X-License-Key": licenseKey },
+      body: JSON.stringify({ loginSource: 1 }),
+      signal: AbortSignal.timeout(30000),
+    });
+    const startJson = await startRes.json();
+    if (!startJson?.success) throw new Error(startJson?.detail || startJson?.msg || "创建扫码失败");
+    const sessionId = startJson.sessionId;
+    if (!sessionId) throw new Error("未返回 sessionId");
+
+    // 发二维码（base64 data URL）
+    if (startJson.qrcodeDataUrl) {
+      const b64 = String(startJson.qrcodeDataUrl).replace(/^data:image\/\w+;base64,/, "");
+      await s.reply({ type: "image", data: b64 });
+    } else if (startJson.qrcodeUrl) {
+      await s.reply(utils.image(startJson.qrcodeUrl));
+    } else {
+      throw new Error("未返回二维码图片");
+    }
+    await s.reply("请用微信扫码并确认授权，正在等待...");
+
+    // 2. 轮询状态
+    const deadline = Date.now() * 1 + (Number(cfg.wait_seconds) || 120) * 1000;
+    let account = null;
+    while (Date.now() < deadline) {
+      await new Promise((r) => setTimeout(r, (Number(cfg.poll_seconds) || 3) * 1000));
+      try {
+        const stRes = await fetch(
+          `${yybUrl}/api/login/status?sessionId=${encodeURIComponent(sessionId)}&licenseKey=${encodeURIComponent(licenseKey)}`,
+          { signal: AbortSignal.timeout(15000) },
+        );
+        const st = await stRes.json();
+        const status = String(st?.status || "").toLowerCase();
+        if (status === "success" && st?.account) {
+          account = st.account;
+          break;
+        }
+        if (["expired", "rejected", "cancelled", "error"].includes(status)) throw new Error(`二维码状态：${status}`);
+      } catch (e) {
+        if (e.message.includes("二维码状态")) throw e;
+      }
+    }
+    if (!account) throw new Error("扫码超时，请重新发送指令");
+
+    const openid = account.openid;
+    if (!openid) throw new Error("扫码结果缺少 openid");
+
+    // 3. 换京东 cookie
+    await s.reply("扫码成功，正在换取京东Cookie...");
+    const jd = await exchangeJdCookie(yybUrl, licenseKey, openid);
+    const cookie = core.normalizeCookie(jd.ck);
     if (!cookie) throw new Error("换取结果缺少 pt_key/pt_pin");
-    const ql = new container.QingLong({ id: cfg.qinglongId }),
-      pin = core.ptPin(cookie);
-    const result = await core.upsertEnv(ql, { name: cfg.envName, value: cookie, remarks: core.decode(pin) });
+
+    // 4. 写青龙
+    const ql = new container.QingLong({ id: Number(cfg.qinglong_id) || 1 });
+    const pin = core.ptPin(cookie);
+    const result = await core.upsertEnv(ql, {
+      name: cfg.env_name || "JD_COOKIE",
+      value: cookie,
+      remarks: core.decode(pin),
+    });
+
     const platform = String((await s.getPlatform()) || "");
     notify.set(
       pin,
       JSON.stringify({ user_id: userId, imType: platform, nickname: core.decode(pin), updated_at: Date.now() }),
     );
     accounts.set(`${platform}:${userId}`, JSON.stringify({ openid, pin, updated_at: Date.now() }));
-    await s.pushAdmin(`京东应用宝登录：${core.decode(pin)}，青龙 #${cfg.qinglongId} ${result.action}`);
+    await s.pushAdmin(`京东应用宝登录：${core.decode(pin)}，青龙 #${cfg.qinglong_id} ${result.action}`);
     return s.reply(`京东登录成功：${core.decode(pin)}，Cookie 已${result.action === "created" ? "新增" : "更新"}`);
   } catch (error) {
-    return s.reply(`应用宝扫码登录失败：${friendly(error)}`);
+    return s.reply(`应用宝扫码登录失败：${String(error?.message || error).slice(0, 300)}`);
   }
 }
 
-async function waitConfirmed(cfg, sessionId) {
-  const deadline = Date.now() + cfg.waitSeconds * 1000;
-  while (Date.now() < deadline) {
-    let data;
-    try {
-      data = await yybRequest(cfg, `/qr/${encodeURIComponent(sessionId)}/poll`, "GET");
-    } catch (error) {
-      if (!/timeout|deadline|awaiting headers/i.test(core.errorText(error))) throw error;
-      await utils.sleep(cfg.pollSeconds * 1000);
-      continue;
-    }
-    const status = String(data.status || "").toLowerCase();
-    if (status === "authorized") return yybRequest(cfg, `/qr/${encodeURIComponent(sessionId)}/confirm`, "POST");
-    if (status === "confirmed") return data;
-    if (["expired", "cancelled", "unknown"].includes(status)) throw new Error(`二维码状态：${status}`);
-    await utils.sleep(cfg.pollSeconds * 1000);
-  }
-  throw new Error("扫码超时");
-}
-
-async function yybRequest(cfg, path, method, body) {
-  const response = await core.requestJson(`${cfg.yybUrl}${path}`, {
-    method,
-    headers: body ? { "Content-Type": "application/json" } : {},
-    body: body ? JSON.stringify(body) : undefined,
-    timeout: 45000,
-  });
-  if (response && typeof response === "object" && "code" in response && "data" in response) {
-    if (![0, 200, "0", "200"].includes(response.code))
-      throw new Error(response.msg || response.message || JSON.stringify(response));
-    return response.data && typeof response.data === "object" ? response.data : { value: response.data };
-  }
-  if (response?.success === false)
-    throw new Error(response.error || response.message || response.msg || JSON.stringify(response));
-  return response || {};
-}
-function absolute(base, value) {
-  if (!value) return "";
-  try {
-    return new URL(value, `${base}/`).toString();
-  } catch (_) {
-    return value;
-  }
-}
-function friendly(error) {
-  const text = core.errorText(error);
-  if (/超时|expired/i.test(text)) return "扫码超时，请重新发送指令";
-  if (/missing pt_key|缺少 pt_key/i.test(text)) return "请先在微信“京东购物”小程序绑定京东账号";
-  return text;
-}
-function normalize(value) {
-  return {
-    yybUrl: String(value.yyb_url || "http://127.0.0.1:18080").replace(/\/+$/, ""),
-    qinglongId: Number(value.qinglong_id) || 1,
-    envName: String(value.env_name || "JD_COOKIE"),
-    waitSeconds: Math.max(30, Math.min(600, Number(value.wait_seconds) || 120)),
-    pollSeconds: Math.max(1, Math.min(15, Number(value.poll_seconds) || 2)),
-  };
-}
 main();
-module.exports = { yybRequest, waitConfirmed };
+module.exports = { exchangeJdCookie };
