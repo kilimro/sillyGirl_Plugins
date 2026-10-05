@@ -498,7 +498,7 @@
     "name": "jdYingYongBaoDengLu",
     "title": "京东应用宝登录",
     "author": "Mianpro官方",
-    "version": "v3.0.0",
+    "version": "v3.0.1",
     "desc": "对接 yyb-py 应用宝微信扫码，换取 pt_key/pt_pin 并同步青龙",
     "icon": "https://www.jd.com/favicon.ico",
     "class": "工具",

@@ -2,7 +2,7 @@
 // [name: jdYingYongBaoDengLu]
 // [desc: 对接 yyb-py 应用宝微信扫码，换取 pt_key/pt_pin 并同步青龙]
 // [author: Mianpro官方]
-// [version: v3.0.0]
+// [version: v3.0.1]
 // [rule: ^(应用宝登录|应用宝扫码|京东微信登录|扫码登录)$]
 // [status: true]
 // [admin: false]
@@ -211,14 +211,13 @@ async function main() {
     const sessionId = startJson.sessionId;
     if (!sessionId) throw new Error("未返回 sessionId");
 
-    // 发二维码（base64 data URL）
-    if (startJson.qrcodeDataUrl) {
-      const b64 = String(startJson.qrcodeDataUrl).replace(/^data:image\/\w+;base64,/, "");
-      await s.reply({ type: "image", data: b64 });
-    } else if (startJson.qrcodeUrl) {
+    // 发二维码（用URL发，base64微信发不出去）
+    if (startJson.qrcodeUrl) {
       await s.reply(utils.image(startJson.qrcodeUrl));
+    } else if (startJson.uuid) {
+      await s.reply(utils.image(`https://open.weixin.qq.com/connect/qrcode/${startJson.uuid}`));
     } else {
-      throw new Error("未返回二维码图片");
+      throw new Error("未返回二维码");
     }
     await s.reply("请用微信扫码并确认授权，正在等待...");
 
