@@ -130,7 +130,7 @@ async function coupon() {
     return s.reply(info.length ? `领券成功\n${info.map((x) => `🎁 ${x}`).join("\n")}` : "优惠券领取成功");
   } catch (error) {
     if (item.price > 0 && (await balance(userId)) !== old) await setBalance(userId, old);
-    throw error;
+    return s.reply(`${error?.message || error}`);
   }
 }
 async function whitelist() {
