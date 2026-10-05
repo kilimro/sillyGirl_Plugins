@@ -498,7 +498,7 @@
     "name": "jdYingYongBaoDengLu",
     "title": "京东应用宝登录",
     "author": "1934103887,97610325",
-    "version": "v2.2.0",
+    "version": "v2.2.1",
     "desc": "对接 YYB Go 应用宝微信扫码服务，换取 pt_key/pt_pin、绑定用户并同步青龙",
     "icon": "https://www.jd.com/favicon.ico",
     "class": "工具类",

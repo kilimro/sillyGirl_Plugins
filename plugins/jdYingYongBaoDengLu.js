@@ -2,7 +2,7 @@
 // [name: jdYingYongBaoDengLu]
 // [desc: 对接 YYB Go 应用宝微信扫码服务，换取 pt_key/pt_pin、绑定用户并同步青龙]
 // [author: 1934103887,97610325]
-// [version: v2.2.0]
+// [version: v2.2.1]
 // [rule: ^(应用宝登录|应用宝扫码|微信Code登录|京东微信登录)$]
 // [status: true]
 // [admin: false]
@@ -43,11 +43,23 @@ async function main() {
     const confirmed = await waitConfirmed(cfg, sessionId);
     const openid =
       confirmed.openid || confirmed.openId || confirmed.ref || confirmed.account?.openid || confirmed.data?.openid;
-    if (!openid) throw new Error("确认结果缺少 openid");
-    const nickname = confirmed.nickname || confirmed.account?.nickname || "未知";
+    if (!openid) throw new Error("确认结果缺少 openid/ref");
+    const exchanged = await yybRequest(cfg, "/jd/pt/exchange", "POST", { ref: openid });
+    const cookie = core.normalizeCookie(
+      exchanged.ck || exchanged.cookie || `pt_key=${exchanged.pt_key};pt_pin=${exchanged.pt_pin};`,
+    );
+    if (!cookie) throw new Error("换取结果缺少 pt_key/pt_pin");
+    const ql = new container.QingLong({ id: cfg.qinglongId }),
+      pin = core.ptPin(cookie);
+    const result = await core.upsertEnv(ql, { name: cfg.envName, value: cookie, remarks: core.decode(pin) });
     const platform = String((await s.getPlatform()) || "");
-    accounts.set(`${platform}:${userId}`, JSON.stringify({ openid, nickname, updated_at: Date.now() }));
-    return s.reply(`扫码登录成功：${nickname}（openid: ${openid.slice(0, 20)}...）`);
+    notify.set(
+      pin,
+      JSON.stringify({ user_id: userId, imType: platform, nickname: core.decode(pin), updated_at: Date.now() }),
+    );
+    accounts.set(`${platform}:${userId}`, JSON.stringify({ openid, pin, updated_at: Date.now() }));
+    await s.pushAdmin(`京东应用宝登录：${core.decode(pin)}，青龙 #${cfg.qinglongId} ${result.action}`);
+    return s.reply(`京东登录成功：${core.decode(pin)}，Cookie 已${result.action === "created" ? "新增" : "更新"}`);
   } catch (error) {
     return s.reply(`应用宝扫码登录失败：${friendly(error)}`);
   }
