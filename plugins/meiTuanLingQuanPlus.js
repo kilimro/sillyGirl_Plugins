@@ -2,7 +2,7 @@
 // [name: meiTuanLingQuanPlus]
 // [desc: 美团三类券包领取、店铺刷白、积分充值及管理员加扣分]
 // [author: yuhualhh]
-// [version: v2.1.9]
+// [version: v2.2.0]
 // [rule: ^(美团领券|美团领劵|美团领卷|美团领卷余额查询|美团刷白|美团充分|美团查分|美团加分|美团减分|释放支付锁|释放锁)$]
 // [status: true]
 // [admin: false]
@@ -20,7 +20,7 @@ const { sender: s, Bucket, plugin, utils } = require("sillygirl"),
 const form = new plugin.Form({
   api_key: plugin.Form.string().title("领券API秘钥").default(""),
   api_url: plugin.Form.string().title("API地址").default("http://api.oroe.cn"),
-  prices: plugin.Form.string().title("三项目积分价格，用|分隔，-1关闭").default("88|88|88"),
+  prices: plugin.Form.string().title("两项目积分价格，用|分隔，-1关闭").default("88|88"),
   exchange_rate: plugin.Form.number().title("充值1元兑换积分").min(0.01).default(1),
   qr_code: plugin.Form.string().title("收款码图片URL").default(""),
   payment_lock_timeout: plugin.Form.integer().title("支付锁超时秒").min(30).max(3600).default(300),
@@ -80,7 +80,7 @@ async function req(url, opt = {}) {
 function pricesConfig() {
   const raw = String(cfg.prices || "").split("|"),
     out = [];
-  for (let i = 0; i < 3; i++) {
+  for (let i = 0; i < 2; i++) {
     const n = Number(raw[i]);
     out.push(Number.isFinite(n) ? n : 88);
   }
@@ -90,15 +90,13 @@ function api(path) {
   return `${String(cfg.api_url || "http://api.oroe.cn").replace(/\/$/, "")}${path}`;
 }
 async function callCoupon(cookie, type) {
-  const endpoint = { 1: "meituanvc", 2: "meituan259", 3: "meituanza" }[type] || "meituanza",
-    payload = { apikey: cfg.api_key, MeiTuanCookie: cookie };
-  let r = await req(api(`/API/${endpoint}.php`), { method: "POST", json: payload });
-  if (r?.code === undefined) r = await req(api(`/API/${endpoint}.php`), { method: "POST", form: payload });
-  return r;
+  const endpoint = { 1: "meituans", 2: "meituan259" }[type] || "meituans",
+    url = `${api(`/API/${endpoint}.php`)}?MeiTuanCookie=${encodeURIComponent(cookie)}&apikey=${cfg.api_key}`;
+  return req(url, { method: "GET" });
 }
 async function coupon() {
   if (!cfg.api_key) throw new Error("未配置API秘钥");
-  const names = ["美团大众无门槛", "美团综合类券包", "美团早中晚神券"],
+  const names = ["美团专享类券包", "美团综合类券包"],
     all = pricesConfig(),
     available = all.map((price, i) => ({ price, name: names[i], type: i + 1 })).filter((x) => x.price !== -1),
     n = Number(
