@@ -2,7 +2,7 @@
 // [name: duanShiPinTuJiJieXi]
 // [desc: 解析抖音、快手、微博、皮皮虾、西瓜、小红书、哔哩哔哩等平台视频和图集]
 // [author: 297129582]
-// [version: v1.2.1]
+// [version: v2.0.0]
 // [rule: raw (https?://\S+(?:douyin\.com|kuaishou\.com|chenzhongtech\.com|kuai-fei\.com|weibo\.com|t\.cn|pipix\.com|pipigx\.com|ixigua\.com|xhslink\.com|xiaohongshu\.com|bilibili\.com|b23\.tv|bili2233\.cn)\S*)]
 // [rule: ^短视频图集解析$]
 // [status: true]
@@ -10,7 +10,7 @@
 // [public: true]
 // [priority: 999999999]
 // [class: 影音类]
-// [icon: https://wiki.920pdd.com/uploads/avatars/2024/12/01//fwUbpklrVjbmOWJz.png]
+// [icon: https://fe-video-qc.xhscdn.com/fe-platform/ed8fe781ce9e16c1bfac2cd962f0721edabe2e49.ico]
 // [carry: true]
 // [origin: backup/短视频图集解析_v1.1.2_By.297129582.txt;backup/短视频图集解析_v1.2.0_By.297129582.js]
 // [depe: []]
@@ -22,9 +22,7 @@ const form = new plugin.Form({
   api_endpoints: plugin.Form.string()
     .title("解析接口")
     .description("每行一个，末尾直接拼接原链接")
-    .default(
-      "http://dsp.jx.cangg.cn/caonima.php?url=\nhttp://dsp1.jx.cangg.cn/caonima.php?url=\nhttp://dsp2.jx.cangg.cn/caonima.php?url=",
-    ),
+    .default("https://api.qingxiongvideo.cn/api/parse?url="),
   short_url_api: plugin.Form.string().title("短链接口").description("末尾直接拼接目标链接，可留空").default(""),
   timeout_ms: plugin.Form.integer().title("请求超时毫秒").min(3000).max(30000).default(8000),
   image_total: plugin.Form.integer().title("图集最多图片").min(1).max(100).default(66),
@@ -42,16 +40,16 @@ async function main() {
   const enabled = await settings.get(`enabled:${chatId}`, chatId === "private" ? "true" : "false");
   if (enabled !== "true") return;
   const data = await parseMedia(match[0].replace(/\\/g, ""), cfg);
-  if (Number(data?.code) !== 200 || !data?.url) throw new Error(data?.msg || "解析失败，视频不存在或接口失效");
-  const showText = (await settings.get(`caption:${chatId}`, "false")) === "true";
-  if (showText) await s.reply(await information(data, cfg));
-  if (String(data.type || "").includes("图") || Array.isArray(data.url))
-    return sendImages(Array.isArray(data.url) ? data.url : [data.url], cfg);
-  const platform = String((await s.getPlatform()) || "").toLowerCase();
-  let video = data.url;
-  if (data.name === "抖音")
-    video = platform === "wx" ? data.url2 || data.url1 || data.url : data.url1 || data.url2 || data.url;
-  else if (data.url1) video = data.url1;
+  if (Number(data?.code) !== 200) throw new Error(data?.msg || "解析失败，视频不存在或接口失效");
+  // 新 API 适配：图集用 images 数组，视频用 video/videoUrl
+  const images =
+    Array.isArray(data.images) && data.images.length
+      ? data.images
+      : Array.isArray(data.rawImages) && data.rawImages.length
+        ? data.rawImages
+        : [];
+  if (images.length) return sendImages(images, cfg);
+  const video = data.video || data.videoUrl || data.downloadUrl || data.url;
   if (!video) throw new Error("接口没有返回视频地址");
   return s.reply(utils.video(await maybeShort(String(video), cfg)));
 }
