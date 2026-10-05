@@ -2,7 +2,7 @@
 // [name: duanShiPinTuJiJieXi]
 // [desc: 解析抖音、快手、微博、皮皮虾、西瓜、小红书、哔哩哔哩等平台视频和图集]
 // [author: 297129582]
-// [version: v2.0.1]
+// [version: v2.0.2]
 // [rule: raw (https?://\S+(?:douyin\.com|kuaishou\.com|chenzhongtech\.com|kuai-fei\.com|weibo\.com|t\.cn|pipix\.com|pipigx\.com|ixigua\.com|xhslink\.com|xiaohongshu\.com|bilibili\.com|b23\.tv|bili2233\.cn)\S*)]
 // [rule: ^短视频图集解析$]
 // [status: true]
@@ -28,17 +28,21 @@ const form = new plugin.Form({
   image_total: plugin.Form.integer().title("图集最多图片").min(1).max(100).default(66),
   image_batch: plugin.Form.integer().title("每批图片数").min(1).max(18).default(9),
   batch_sleep_ms: plugin.Form.integer().title("批次间隔毫秒").min(0).max(10000).default(1000),
+  enable_private: plugin.Form.boolean().title("私聊启用").default(true),
+  enable_group: plugin.Form.boolean().title("群聊启用").default(true),
 });
 
 async function main() {
   const cfg = (await form.get()) || {};
   const content = String((await s.getMsg()) || "").trim();
   const chatId = String((await s.getChatId()) || "private");
+  const userId = String((await s.getUserId()) || "");
+  const isPrivate = !chatId || chatId === userId;
   if (content === "短视频图集解析") return configure(chatId);
   const match = content.match(/https?:\/\/[^\s"'<>]+/i);
   if (!match) return;
-  const enabled = await settings.get(`enabled:${chatId}`, chatId === "private" ? "true" : "false");
-  if (enabled !== "true") return;
+  if (isPrivate && !cfg.enable_private) return;
+  if (!isPrivate && !cfg.enable_group) return;
   await s.reply("处理中...");
   const data = await parseMedia(match[0].replace(/\\/g, ""), cfg);
   if (Number(data?.code) !== 200) throw new Error(data?.msg || "解析失败，视频不存在或接口失效");
