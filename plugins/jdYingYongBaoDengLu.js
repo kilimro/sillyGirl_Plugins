@@ -2,7 +2,7 @@
 // [name: jdYingYongBaoDengLu]
 // [desc: 对接 YYB Go 应用宝微信扫码服务，换取 pt_key/pt_pin、绑定用户并同步青龙]
 // [author: 1934103887,97610325]
-// [version: v2.1.0]
+// [version: v2.1.1]
 // [rule: ^(应用宝登录|应用宝扫码|微信Code登录|京东微信登录)$]
 // [status: true]
 // [admin: false]
@@ -30,7 +30,9 @@ const form = new plugin.Form({
 async function main() {
   const cfg = normalize((await form.get()) || {});
   try {
-    if (await s.getChatId()) return s.reply("应用宝扫码登录请私聊机器人使用");
+    const chatId = String((await s.getChatId()) || "");
+    const userId = String((await s.getUserId()) || "");
+    if (chatId && chatId !== userId) return s.reply("应用宝扫码登录请私聊机器人使用");
     const qr = await yybRequest(cfg, "/qr?as_base64=true", "POST");
     const sessionId = qr.session_id || qr.sessionId;
     if (!sessionId) throw new Error("扫码服务未返回 session_id");
