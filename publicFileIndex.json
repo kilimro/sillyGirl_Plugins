@@ -680,7 +680,7 @@
     "name": "kuaidiChaXun",
     "title": "快递查询",
     "author": "Mianpro官方",
-    "version": "v1.0.1",
+    "version": "v1.0.2",
     "desc": "发\"查快递773443987038423\"查快递物流，自动识别快递公司",
     "icon": "https://cdn.kuaidi100.com/images/openApiWeb/common/favicon.ico",
     "class": "工具",

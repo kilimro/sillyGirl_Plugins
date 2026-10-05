@@ -2,7 +2,7 @@
 // [name: kuaidiChaXun]
 // [desc: 发"查快递773443987038423"查快递物流，自动识别快递公司]
 // [author: Mianpro官方]
-// [version: v1.0.1]
+// [version: v1.0.2]
 // [rule: ^查快递(.+)$]
 // [status: true]
 // [admin: false]
@@ -30,7 +30,7 @@ async function main() {
   if (!nu) return;
 
   try {
-    const url = `https://api.kuaidi.com/openapi.html?id=${cfg.api_key}&nu=${encodeURIComponent(nu)}&show=0&muti=1&order=desc`;
+    const url = `http://api.kuaidi.com/openapi.html?id=${cfg.api_key}&nu=${encodeURIComponent(nu)}&show=0&muti=1&order=desc`;
     const res = await fetch(url, {
       signal: AbortSignal.timeout(10000),
       headers: { "user-agent": "Mozilla/5.0" },
