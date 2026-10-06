@@ -2,7 +2,7 @@
 // [name: smartForwardScript]
 // [desc: 搬运群处理脚本：根据关键词/用户条件，把消息转发到目标群/用户]
 // [author: MIANPRO官方]
-// [version: v3.0.1]
+// [version: v3.0.2]
 // [rule: ^智能转发$]
 // [status: true]
 // [admin: false]
@@ -78,12 +78,10 @@ async function main() {
   }
 
   try {
-    // 发送消息到目标群
-    const sender = s.Sender2({
-      platform: cfg.target_platform,
-      chat_id: cfg.target_chat_id,
-    });
-    await sender.reply(forwardContent);
+    // 修改发送目标到指定群
+    s.CHAT_ID = cfg.target_chat_id;
+    s.ImType = cfg.target_platform;
+    await s.reply(forwardContent);
     console.log(`[智能转发脚本] 转发成功：${chatId} -> ${cfg.target_platform}/${cfg.target_chat_id}，内容：${content.substring(0, 50)}`);
   } catch (e) {
     console.error(`[智能转发脚本] 转发失败：${e.message}`);
