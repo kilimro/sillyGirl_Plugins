@@ -2,7 +2,7 @@
 // [name: smartForward]
 // [desc: 群消息智能转发：支持关键词匹配、指定用户，可配置或/且逻辑（作为搬运群脚本使用）]
 // [author: MIANPRO官方]
-// [version: v1.0.1]
+// [version: v1.0.2]
 // [rule: __carry_script_only__]
 // [status: true]
 // [admin: false]
