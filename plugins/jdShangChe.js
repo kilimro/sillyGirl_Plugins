@@ -2,7 +2,7 @@
 // [name: jdShangChe]
 // [desc: 用户在Web端提交京东CK，自动同步到青龙容器]
 // [author: Mianpro官方]
-// [version: v1.0.0]
+// [version: v1.0.1]
 // [rule: ^京东上车$]
 // [cron: 0 0 * * *]
 // [status: true]
@@ -19,7 +19,7 @@ const { user, plugin, sender: s, container, Bucket } = require("sillygirl");
 user
   .Form({
     cookie: user.Form.string().title("京东Cookie").description("格式：pt_key=xxx;pt_pin=xxx;").required(),
-    remark: (user.Form.string().title("备注（选填）").description = "给CK起个名字".default("")),
+    remark: user.Form.string().title("备注（选填）").description("给CK起个名字").default(""),
   })
   .multiple(5);
 

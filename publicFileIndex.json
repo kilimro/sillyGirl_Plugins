@@ -472,7 +472,7 @@
     "name": "jdShangChe",
     "title": "京东上车",
     "author": "Mianpro官方",
-    "version": "v1.0.0",
+    "version": "v1.0.1",
     "desc": "用户在Web端提交京东CK，自动同步到青龙容器",
     "icon": "https://fc-ccimage.baidu.com/0/pic/-1452396718_1569556084_-7398448.jpg",
     "class": "工具",
