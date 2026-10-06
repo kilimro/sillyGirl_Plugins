@@ -2,7 +2,7 @@
 // [name: smartForwardScript]
 // [desc: 群消息转发：根据关键词/用户条件，把消息转发到指定目标群/用户，支持跨平台]
 // [author: Mianpro官方]
-// [version: v4.1.3]
+// [version: v4.1.4]
 // [rule: raw [\s\S]*]
 // [status: true]
 // [admin: false]
@@ -79,6 +79,8 @@ async function main() {
   const shouldForward = cfg.match_logic === "and" ? hasKeyword && hasUser : hasKeyword || hasUser;
 
   if (!shouldForward) return;
+
+  await s.reply(`[调试] 准备转发 -> ${targetPlatform}/${targetBotId}/${cfg.target_chat_id}`);
 
   const targetChat = String(cfg.target_chat_id || "").trim();
   if (!targetChat) return;
