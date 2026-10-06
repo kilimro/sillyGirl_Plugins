@@ -2,7 +2,7 @@
 // [name: smartForwardScript]
 // [desc: 群消息转发：根据关键词/用户条件，把消息转发到指定目标群/用户，支持跨平台]
 // [author: Mianpro官方]
-// [version: v4.1.0]
+// [version: v4.1.1]
 // [rule: raw [\s\S]*]
 // [status: true]
 // [admin: false]
@@ -89,9 +89,9 @@ async function main() {
       chat_id: targetChat,
       content: forwardContent,
     });
-    console.log(`[智能转发] ${platform}/${chatId} -> ${targetPlatform}/${targetChat} 成功`);
+    await s.reply(`[调试] 转发成功: ${platform}/${chatId} -> ${targetPlatform}/${targetChat}`);
   } catch (e) {
-    console.error(`[智能转发] 转发失败: ${e.message}`);
+    await s.reply(`[调试] 转发失败: ${e.message}`);
   }
 }
 
