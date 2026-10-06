@@ -1070,7 +1070,7 @@
     "name": "smartForwardScript",
     "title": "智能转发脚本",
     "author": "MIANPRO官方",
-    "version": "v3.0.2",
+    "version": "v3.0.3",
     "desc": "搬运群处理脚本：根据关键词/用户条件，把消息转发到目标群/用户",
     "icon": "https://m4.publicimg.browser.qq.com/imgUpload/qbtool.t_tool_info/b91aa2df_W4ZZOk76VO4.png",
     "class": "工具",
