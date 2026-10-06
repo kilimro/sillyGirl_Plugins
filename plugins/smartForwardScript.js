@@ -1,8 +1,8 @@
 // [title: 智能转发脚本]
 // [name: smartForwardScript]
-// [desc: 群消息转发：根据关键词/用户条件，把消息转发到指定目标群/用户，支持同平台和跨平台]
+// [desc: 群消息转发：根据关键词/用户条件，把消息转发到指定目标群/用户，支持跨平台]
 // [author: Mianpro官方]
-// [version: v4.0.0]
+// [version: v4.0.1]
 // [rule: raw [\s\S]*]
 // [status: true]
 // [admin: false]
@@ -13,9 +13,7 @@
 // [icon: https://m4.publicimg.browser.qq.com/imgUpload/qbtool.t_tool_info/b91aa2df_W4ZZOk76VO4.png]
 // [depe: []]
 
-const { plugin, sender: s, Bucket } = require("sillygirl");
-
-const settings = new Bucket("smartForwardScript.rules");
+const { plugin, sender: s, Adapter } = require("sillygirl");
 
 const config = new plugin.Form({
   enabled: plugin.Form.boolean().title("启用转发").default(true),
@@ -29,9 +27,8 @@ const config = new plugin.Form({
     .option("or", "或（满足任一条件）")
     .option("and", "且（两个条件都满足）")
     .default("or"),
-  target_platform: plugin.Form.string()
-    .title("目标平台（留空=转发到当前平台）")
-    .description("如 wx、qq、tg 等，留空则同平台转发"),
+  target_platform: plugin.Form.string().title("目标平台（留空=当前平台）").description("如 wx、qq、tg 等"),
+  target_bot_id: plugin.Form.string().title("目标Bot ID（留空=当前Bot）").description("跨平台时需要填目标平台的Bot ID"),
   target_chat_id: plugin.Form.string().title("目标群号/用户ID").required(),
   forward_prefix: plugin.Form.string().title("转发前缀").default("【转发】"),
   forward_suffix: plugin.Form.string().title("转发后缀").default(""),
@@ -46,6 +43,7 @@ async function main() {
   const fromUser = String((await s.getUserId()) || "");
   const chatId = String((await s.getChatId()) || "");
   const platform = String((await s.getPlatform()) || "");
+  const botId = String((await s.getBotId()) || "");
 
   // 忽略机器人自己转发的消息
   if (cfg.ignore_forwarded && content.startsWith(cfg.forward_prefix)) return;
@@ -73,15 +71,17 @@ async function main() {
   if (!targetChat) return;
 
   const targetPlatform = String(cfg.target_platform || "").trim() || platform;
+  const targetBotId = String(cfg.target_bot_id || "").trim() || botId;
   const forwardContent = cfg.forward_prefix + content + cfg.forward_suffix;
 
   try {
-    const adapter = await s.getAdapter();
+    const adapter = new Adapter({ platform: targetPlatform, bot_id: targetBotId });
     await adapter.push({
       user_id: "system",
       chat_id: targetChat,
       content: forwardContent,
     });
+    console.log(`[智能转发] ${platform}/${chatId} -> ${targetPlatform}/${targetChat} 成功`);
   } catch (e) {
     console.error(`[智能转发] 转发失败: ${e.message}`);
   }
