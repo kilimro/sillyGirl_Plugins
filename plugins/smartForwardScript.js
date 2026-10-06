@@ -2,7 +2,7 @@
 // [name: smartForwardScript]
 // [desc: 搬运群处理脚本：根据关键词/用户条件，把消息转发到目标群/用户]
 // [author: MIANPRO官方]
-// [version: v3.0.0]
+// [version: v3.0.1]
 // [rule: ^智能转发$]
 // [status: true]
 // [admin: false]
@@ -41,7 +41,6 @@ async function main() {
   const content = String((await s.getMsg()) || "").trim();
   const fromUser = String((await s.getUserId()) || "");
   const chatId = String((await s.getChatId()) || "");
-  const platform = String(s.getImType() || "");
 
   // 忽略已经转发过的消息
   if (cfg.ignore_forwarded && content.startsWith(cfg.forward_prefix)) {
@@ -85,7 +84,7 @@ async function main() {
       chat_id: cfg.target_chat_id,
     });
     await sender.reply(forwardContent);
-    console.log(`[智能转发脚本] 转发成功：${platform}/${chatId} -> ${cfg.target_platform}/${cfg.target_chat_id}，内容：${content.substring(0, 50)}`);
+    console.log(`[智能转发脚本] 转发成功：${chatId} -> ${cfg.target_platform}/${cfg.target_chat_id}，内容：${content.substring(0, 50)}`);
   } catch (e) {
     console.error(`[智能转发脚本] 转发失败：${e.message}`);
   }
