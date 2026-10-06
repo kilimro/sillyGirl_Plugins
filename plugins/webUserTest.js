@@ -2,16 +2,17 @@
 // [name: webUserTest]
 // [desc: Web 用户中心测试插件：用户填写表单提交信息]
 // [author: Mianpro官方]
-// [version: v1.0.1]
+// [version: v1.1.0]
+// [rule: ^(用户信息|我的信息)$]
 // [status: true]
 // [admin: false]
-// [public: false]
+// [public: true]
 // [web: true]
 // [class: 工具]
 // [icon: https://wiki.920pdd.com/uploads/avatars/2024/12/01//fwUbpklrVjbmOWJz.png]
 // [depe: []]
 
-const { user } = require("sillygirl");
+const { user, sender: s } = require("sillygirl");
 
 // 用户表单：用户在 Web 端填写
 user
@@ -25,4 +26,11 @@ user
   .multiple(5)
   .keyBy("nickname");
 
-console.log("[用户信息测试] Web插件已加载");
+async function main() {
+  const pluginId = process.env.PLUGIN_ID || "";
+  await s.reply(
+    `请在 Web 用户中心填写信息：\n打开 /user 页面，找到「用户信息测试」\n或直接访问：/api/user/plugins/${pluginId}/form`,
+  );
+}
+
+main();
