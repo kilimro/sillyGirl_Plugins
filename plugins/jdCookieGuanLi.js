@@ -13,7 +13,7 @@
 // [public: true]
 // [priority: 99999999]
 // [class: 工具类]
-// [icon: https://www.jd.com/favicon.ico]
+// [icon: https://fc-ccimage.baidu.com/0/pic/-1452396718_1569556084_-7398448.jpg]
 // [carry: true]
 // [origin: backup/COOKIE_v1.1.9_By.qingge.txt;backup/COOKIE接口_v1.0.3_By.qingge.txt;backup/导出ck定制版_v1.0.1_By.specter.txt;backup/指定CK同步_v0.1.0_By.qingge.txt;backup/指定PIN调整排名_v0.3.1_By.qingge.js;backup/检查账号-渠道推送_v1.0.5_By.qingge.js]
 // [depe: ["./jdLegacyCore.js"]]

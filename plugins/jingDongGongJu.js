@@ -9,7 +9,7 @@
 // [public: true]
 // [priority: 0]
 // [class: 工具]
-// [icon: https://www.jd.com/favicon.ico]
+// [icon: https://fc-ccimage.baidu.com/0/pic/-1452396718_1569556084_-7398448.jpg]
 // [origin: backup/COOKIE处理_v2.5.0_By.1934103887.py;backup/JD失效通知_v1.2.2_By.chuan.py;backup/JD店铺签到_v3.0.10_By.buzhi.py;backup/M实物查询_v2.0.6_By.buzhi.py;backup/传输CK_v2.2_By.zq8884.py;backup/查询实物中奖—全支持版_v1.3.0_By.ahhhahh.py;backup/自动评价_v1.4.8_By.specter.py]
 // [depe: []]
 

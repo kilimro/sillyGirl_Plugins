@@ -10,7 +10,7 @@
 // [public: true]
 // [priority: 999]
 // [class: 查询类]
-// [icon: https://www.jd.com/favicon.ico]
+// [icon: https://fc-ccimage.baidu.com/0/pic/-1452396718_1569556084_-7398448.jpg]
 // [carry: true]
 // [origin: backup/jd_今日京豆_v11_By.funyhook.txt;backup/jd_今日京豆_v11_By.xiaoqing.js;backup/JD豆豆明细_vv1.1.1_By.qingge.js;backup/O-资产查询_v2.6.3_By.xiaoqing.txt;backup/Y_查询_v2.1.1_By.hunyan.js;backup/Y_查询_v2.1.1_By.hunyan.txt;backup/今日京豆排名_v1.3.2_By.qingge.js;backup/今日京豆排名_v1.3.2_By.qingge.txt]
 // [depe: ["./jdLegacyCore.js"]]

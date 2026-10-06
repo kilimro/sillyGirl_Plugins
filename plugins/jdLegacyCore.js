@@ -8,7 +8,7 @@
 // [public: true]
 // [priority: 0]
 // [class: 模块]
-// [icon: https://www.jd.com/favicon.ico]
+// [icon: https://fc-ccimage.baidu.com/0/pic/-1452396718_1569556084_-7398448.jpg]
 // [module: true]
 // [carry: false]
 // [origin: 自定义]

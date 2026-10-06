@@ -10,7 +10,7 @@
 // [public: true]
 // [priority: 99999]
 // [class: 工具类]
-// [icon: https://www.jd.com/favicon.ico]
+// [icon: https://fc-ccimage.baidu.com/0/pic/-1452396718_1569556084_-7398448.jpg]
 // [carry: true]
 // [origin: backup/JD自动评价_v0.1.0_By.qingge.js;backup/京东自动评价_v1.0.3_By.hunyan.js;backup/自动评价_v1.4.8_By.specter.py;backup/自动评价_v1.4.8_By.specter.txt]
 // [depe: ["./jdLegacyCore.js"]]

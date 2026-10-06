@@ -8,7 +8,7 @@
 // [public: true]
 // [priority: 10]
 // [class: 工具类]
-// [icon: https://www.jd.com/favicon.ico]
+// [icon: https://fc-ccimage.baidu.com/0/pic/-1452396718_1569556084_-7398448.jpg]
 // [module: true]
 // [carry: true]
 // [origin: backup/JD通用sign_v1.6.3_By.chuan.py;backup/JD通用sign_v1.6.3_By.chuan.txt;backup/JDsignES5版_v1.0.0_By.hunyan.txt]

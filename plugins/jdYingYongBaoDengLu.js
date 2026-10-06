@@ -9,7 +9,7 @@
 // [public: true]
 // [priority: 101]
 // [class: 工具]
-// [icon: https://www.jd.com/favicon.ico]
+// [icon: https://fc-ccimage.baidu.com/0/pic/-1452396718_1569556084_-7398448.jpg]
 // [carry: true]
 // [depe: ["./jdLegacyCore.js"]]
 

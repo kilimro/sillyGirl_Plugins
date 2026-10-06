@@ -12,7 +12,7 @@
 // [public: true]
 // [priority: 0]
 // [class: 工具]
-// [icon: https://www.jd.com/favicon.ico]
+// [icon: https://fc-ccimage.baidu.com/0/pic/-1452396718_1569556084_-7398448.jpg]
 // [origin: backup/jd_口令_v0.0.1_By.authook.py;backup/京东口令解析_v1.2.0_By.chuan.py;backup/口令解析_v1.2.4_By.qingge.js;backup/口令解析_v1.2.4_By.qingge.txt]
 // [depe: []]
 
