@@ -2,8 +2,8 @@
 // [name: smartForwardScript]
 // [desc: 搬运群处理脚本：根据关键词/用户条件，把消息转发到目标群/用户]
 // [author: MIANPRO官方]
-// [version: v2.0.0]
-// [rule: __carry_script_only__]
+// [version: v2.0.2]
+// [rule: ^智能转发$]
 // [status: true]
 // [admin: false]
 // [public: false]
@@ -38,10 +38,10 @@ const config = new plugin.Form({
 async function main() {
   const cfg = normalizeConfig(await config.get());
 
-  const content = String(s.GetContent() || "").trim();
-  const fromUser = String(s.GetUserId() || "");
-  const chatId = String(s.GetChatID() || "");
-  const platform = String(s.GetImType() || "");
+  const content = String((await s.getMsg()) || "").trim();
+  const fromUser = String((await s.getUserId()) || "");
+  const chatId = String((await s.getChatId()) || "");
+  const platform = String(s.getImType() || "");
 
   // 忽略已经转发过的消息
   if (cfg.ignore_forwarded && content.startsWith(cfg.forward_prefix)) {
@@ -79,12 +79,13 @@ async function main() {
   }
 
   try {
-    await plugin.api.sendText({
+    // 发送消息到目标群
+    const sender = s.Sender2({
       platform: cfg.target_platform,
-      chat_id: targetChatId,
-      text: forwardContent,
+      chat_id: cfg.target_chat_id,
     });
-    console.log(`[智能转发脚本] 转发成功：${platform}/${chatId} -> ${cfg.target_platform}/${targetChatId}，内容：${content.substring(0, 50)}`);
+    await sender.reply(forwardContent);
+    console.log(`[智能转发脚本] 转发成功：${platform}/${chatId} -> ${cfg.target_platform}/${cfg.target_chat_id}，内容：${content.substring(0, 50)}`);
   } catch (e) {
     console.error(`[智能转发脚本] 转发失败：${e.message}`);
   }
