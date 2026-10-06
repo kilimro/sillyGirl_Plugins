@@ -2,7 +2,7 @@
 // [name: smartForwardScript]
 // [desc: 搬运群处理脚本：根据关键词/用户条件，把消息转发到目标群/用户]
 // [author: MIANPRO官方]
-// [version: v2.0.2]
+// [version: v3.0.0]
 // [rule: ^智能转发$]
 // [status: true]
 // [admin: false]
