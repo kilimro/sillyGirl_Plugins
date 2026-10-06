@@ -1169,13 +1169,13 @@
     "origin": "https://github.com/kilimro/sillyGirl_Plugins",
     "create_at": "2026-08-05T11:02:34.000Z"
   },
-  "b7f46235-da5a-8a23-e27b-986071c8c81c": {
-    "id": "b7f46235-da5a-8a23-e27b-986071c8c81c",
-    "name": "webUserTest",
-    "title": "用户信息测试",
+  "a3dda68f-a948-8821-a376-d7eec22c234e": {
+    "id": "a3dda68f-a948-8821-a376-d7eec22c234e",
+    "name": "webWelcome",
+    "title": "温馨提醒",
     "author": "Mianpro官方",
-    "version": "v1.0.1",
-    "desc": "Web 用户中心测试插件：用户填写表单提交信息",
+    "version": "v1.0.0",
+    "desc": "欢迎使用MIANPRO多平台管理",
     "icon": "https://wiki.920pdd.com/uploads/avatars/2024/12/01//fwUbpklrVjbmOWJz.png",
     "class": "工具",
     "rule": "",
@@ -1187,13 +1187,13 @@
     "on_start": false,
     "web": true,
     "carry": false,
-    "path": "plugins/webUserTest.js",
-    "raw": "https://raw.githubusercontent.com/kilimro/sillyGirl_Plugins/main/plugins/webUserTest.js",
+    "path": "plugins/webWelcome.js",
+    "raw": "https://raw.githubusercontent.com/kilimro/sillyGirl_Plugins/main/plugins/webWelcome.js",
     "dependencies": [],
     "module_dependencies": [],
     "type": "node",
     "origin": "https://github.com/kilimro/sillyGirl_Plugins",
-    "create_at": "2026-10-06T12:55:06.191Z"
+    "create_at": "2026-10-06T13:18:25.326Z"
   },
   "6599f069-fcc7-0468-376b-cccefd0bcf80": {
     "id": "6599f069-fcc7-0468-376b-cccefd0bcf80",
