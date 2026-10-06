@@ -2,7 +2,7 @@
 // [name: smartForwardScript]
 // [desc: 群消息转发：根据关键词/用户条件，把消息转发到指定目标群/用户，支持跨平台]
 // [author: Mianpro官方]
-// [version: v4.1.4]
+// [version: v4.1.5]
 // [rule: raw [\s\S]*]
 // [status: true]
 // [admin: false]
@@ -77,6 +77,8 @@ async function main() {
 
   // 逻辑判断
   const shouldForward = cfg.match_logic === "and" ? hasKeyword && hasUser : hasKeyword || hasUser;
+
+  await s.reply(`[调试] keywords=${JSON.stringify(keywords)} hasKeyword=${hasKeyword} fromUsers=${JSON.stringify(fromUsers)} hasUser=${hasUser} logic=${cfg.match_logic} shouldForward=${shouldForward}`);
 
   if (!shouldForward) return;
 
