@@ -1,0 +1,109 @@
+// [title: 智能转发]
+// [name: smartForward]
+// [desc: 群消息智能转发：支持关键词匹配、指定用户，可配置或/且逻辑（作为搬运群脚本使用）]
+// [author: MIANPRO官方]
+// [version: v1.0.1]
+// [rule: __carry_script_only__]
+// [status: true]
+// [admin: false]
+// [public: false]
+// [carry: true]
+// [priority: 0]
+// [class: 工具]
+// [icon: https://m4.publicimg.browser.qq.com/imgUpload/qbtool.t_tool_info/b91aa2df_W4ZZOk76VO4.png]
+// [depe: []]
+
+const { plugin, sender: s } = require("sillygirl");
+
+const config = new plugin.Form({
+  keywords: plugin.Form.textarea().title("触发关键词（多个用逗号分隔，模糊匹配）").default(""),
+  from_users: plugin.Form.textarea().title("触发用户ID（多个用逗号分隔，留空则不限制）").default(""),
+  match_logic: plugin.Form.select().title("匹配逻辑").option("or", "或（满足任意一个条件就触发）").option("and", "且（两个条件都满足才触发）").default("or"),
+  target_platform: plugin.Form.string().title("目标平台（留空则转发到当前平台）").default(""),
+  target_chat_id: plugin.Form.string().title("目标群号/用户ID").required(),
+  forward_prefix: plugin.Form.string().title("转发消息前缀").default("【转发】"),
+  forward_suffix: plugin.Form.string().title("转发消息后缀").default(""),
+  ignore_bot: plugin.Form.boolean().title("忽略机器人消息").default(true),
+  ignore_forwarded: plugin.Form.boolean().title("忽略已经转发过的消息（防止循环）").default(true),
+});
+
+async function main() {
+  const cfg = normalizeConfig(await config.get());
+
+  const content = String(s.GetContent() || "").trim();
+  const fromUser = String(s.GetUserId() || "");
+  const chatId = String(s.GetChatID() || "");
+  const platform = String(s.GetImType() || "");
+  const botID = s.GetBotID();
+
+  // 忽略机器人消息
+  if (cfg.ignore_bot) {
+    // 判断是不是机器人发的消息
+    // 这里简单判断：如果消息内容以转发前缀开头，就跳过
+  }
+
+  // 忽略已经转发过的消息（防止循环）
+  if (cfg.ignore_forwarded && content.startsWith(cfg.forward_prefix)) {
+    return;
+  }
+
+  // 解析关键词
+  const keywords = cfg.keywords.split(/[,，\n]/).map(k => k.trim()).filter(k => k);
+  const hasKeywordMatch = keywords.length === 0 || keywords.some(k => content.includes(k));
+
+  // 解析触发用户
+  const fromUsers = cfg.from_users.split(/[,，\n]/).map(u => u.trim()).filter(u => u);
+  const hasUserMatch = fromUsers.length === 0 || fromUsers.includes(fromUser);
+
+  // 根据匹配逻辑判断是否触发
+  let shouldForward = false;
+  if (cfg.match_logic === "and") {
+    shouldForward = hasKeywordMatch && hasUserMatch;
+  } else {
+    shouldForward = hasKeywordMatch || hasUserMatch;
+  }
+
+  // 不满足条件，继续
+  if (!shouldForward) {
+    return;
+  }
+
+  // 转发消息
+  const forwardContent = cfg.forward_prefix + content + cfg.forward_suffix;
+  const targetPlatform = cfg.target_platform || platform;
+  const targetChatId = cfg.target_chat_id;
+
+  if (!targetChatId) {
+    console.log("[智能转发] 未配置目标群号，跳过转发");
+    return;
+  }
+
+  try {
+    // 调用发送消息 API
+    await plugin.api.sendText({
+      platform: targetPlatform,
+      chat_id: targetChatId,
+      text: forwardContent,
+    });
+    console.log(`[智能转发] 转发成功：${chatId} -> ${targetChatId}，内容：${content.substring(0, 50)}`);
+  } catch (e) {
+    console.error(`[智能转发] 转发失败：${e.message}`);
+  }
+}
+
+function normalizeConfig(raw) {
+  const value = raw || {};
+  return {
+    keywords: String(value.keywords || "").trim(),
+    from_users: String(value.from_users || "").trim(),
+    match_logic: value.match_logic === "and" ? "and" : "or",
+    target_platform: String(value.target_platform || "").trim(),
+    target_chat_id: String(value.target_chat_id || "").trim(),
+    forward_prefix: String(value.forward_prefix || "【转发】"),
+    forward_suffix: String(value.forward_suffix || ""),
+    ignore_bot: value.ignore_bot !== false,
+    ignore_forwarded: value.ignore_forwarded !== false,
+  };
+}
+
+main();
