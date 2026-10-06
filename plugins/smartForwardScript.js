@@ -2,7 +2,7 @@
 // [name: smartForwardScript]
 // [desc: 群消息转发：根据关键词/用户条件，把消息转发到指定目标群/用户，支持跨平台]
 // [author: Mianpro官方]
-// [version: v4.1.1]
+// [version: v4.1.2]
 // [rule: raw [\s\S]*]
 // [status: true]
 // [admin: false]
@@ -37,6 +37,14 @@ const config = new plugin.Form({
 
 async function main() {
   const cfg = (await config.get()) || {};
+  const content = String((await s.getMsg()) || "");
+  const chatId = String((await s.getChatId()) || "");
+  const platform = String((await s.getPlatform()) || "");
+
+  await s.reply(
+    `[调试] enabled=${cfg.enabled} platform=${platform} chatId=${chatId} srcPlatform=${cfg.source_platform} srcChat=${cfg.source_chat_id} targetPlatform=${cfg.target_platform} targetChat=${cfg.target_chat_id} targetBot=${cfg.target_bot_id}`,
+  );
+
   if (!cfg.enabled) return;
 
   const content = String((await s.getMsg()) || "");
