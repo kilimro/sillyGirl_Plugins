@@ -1,13 +1,14 @@
-// [title: 智能转发]
-// [name: smartForward]
-// [desc: 消息智能转发：支持关键词匹配、指定用户，可配置或/且逻辑，自动转发到目标群/用户]
+// [title: 智能转发脚本]
+// [name: smartForwardScript]
+// [desc: 搬运群处理脚本：根据关键词/用户条件，把消息转发到目标群/用户]
 // [author: MIANPRO官方]
-// [version: v1.1.0]
-// [rule: raw [\s\S]*]
+// [version: v2.0.0]
+// [rule: __carry_script_only__]
 // [status: true]
 // [admin: false]
 // [public: false]
-// [priority: 1]
+// [carry: true]
+// [priority: 0]
 // [class: 工具]
 // [icon: https://m4.publicimg.browser.qq.com/imgUpload/qbtool.t_tool_info/b91aa2df_W4ZZOk76VO4.png]
 // [depe: []]
@@ -15,7 +16,6 @@
 const { plugin, sender: s } = require("sillygirl");
 
 const config = new plugin.Form({
-  enable: plugin.Form.boolean().title("启用转发").default(true),
   keywords: plugin.Form.string()
     .title("触发关键词（多个用逗号分隔，模糊匹配，留空则所有消息都触发）")
     .widget("textarea")
@@ -28,42 +28,24 @@ const config = new plugin.Form({
     .title("匹配逻辑（填 or 或 and）")
     .description("or = 或（满足任意一个条件就触发）；and = 且（两个条件都满足才触发）")
     .default("or"),
-  source_platforms: plugin.Form.string()
-    .title("监听来源平台（多个用逗号分隔，留空则监听所有平台）")
-    .description("比如：feishu,yyw,web")
-    .default(""),
   target_platform: plugin.Form.string().title("目标平台").required(),
   target_chat_id: plugin.Form.string().title("目标群号/用户ID").required(),
   forward_prefix: plugin.Form.string().title("转发消息前缀").default("【转发】"),
   forward_suffix: plugin.Form.string().title("转发消息后缀").default(""),
-  ignore_self: plugin.Form.boolean().title("忽略自己发的消息（防止循环）").default(true),
+  ignore_forwarded: plugin.Form.boolean().title("忽略已转发消息（防止循环）").default(true),
 });
 
 async function main() {
   const cfg = normalizeConfig(await config.get());
-  if (!cfg.enable) {
-    s.Continue();
-    return;
-  }
 
   const content = String(s.GetContent() || "").trim();
   const fromUser = String(s.GetUserId() || "");
   const chatId = String(s.GetChatID() || "");
   const platform = String(s.GetImType() || "");
 
-  // 忽略自己发的消息
-  if (cfg.ignore_self && content.startsWith(cfg.forward_prefix)) {
-    s.Continue();
+  // 忽略已经转发过的消息
+  if (cfg.ignore_forwarded && content.startsWith(cfg.forward_prefix)) {
     return;
-  }
-
-  // 监听来源平台过滤
-  if (cfg.source_platforms) {
-    const sources = cfg.source_platforms.split(/[,，\s]/).map(p => p.trim()).filter(p => p);
-    if (!sources.includes(platform)) {
-      s.Continue();
-      return;
-    }
   }
 
   // 解析关键词
@@ -82,9 +64,8 @@ async function main() {
     shouldForward = hasKeywordMatch || hasUserMatch;
   }
 
-  // 不满足条件，继续
+  // 不满足条件，跳过
   if (!shouldForward) {
-    s.Continue();
     return;
   }
 
@@ -93,39 +74,33 @@ async function main() {
   const targetChatId = cfg.target_chat_id;
 
   if (!targetChatId) {
-    console.log("[智能转发] 未配置目标群号，跳过转发");
-    s.Continue();
+    console.log("[智能转发脚本] 未配置目标群号，跳过转发");
     return;
   }
 
   try {
-    // 调用发送消息 API
     await plugin.api.sendText({
       platform: cfg.target_platform,
       chat_id: targetChatId,
       text: forwardContent,
     });
-    console.log(`[智能转发] 转发成功：${platform}/${chatId} -> ${cfg.target_platform}/${targetChatId}，内容：${content.substring(0, 50)}`);
+    console.log(`[智能转发脚本] 转发成功：${platform}/${chatId} -> ${cfg.target_platform}/${targetChatId}，内容：${content.substring(0, 50)}`);
   } catch (e) {
-    console.error(`[智能转发] 转发失败：${e.message}`);
+    console.error(`[智能转发脚本] 转发失败：${e.message}`);
   }
-
-  s.Continue();
 }
 
 function normalizeConfig(raw) {
   const value = raw || {};
   return {
-    enable: value.enable !== false,
     keywords: String(value.keywords || "").trim(),
     from_users: String(value.from_users || "").trim(),
     match_logic: value.match_logic === "and" ? "and" : "or",
-    source_platforms: String(value.source_platforms || "").trim(),
     target_platform: String(value.target_platform || "").trim(),
     target_chat_id: String(value.target_chat_id || "").trim(),
     forward_prefix: String(value.forward_prefix || "【转发】"),
     forward_suffix: String(value.forward_suffix || ""),
-    ignore_self: value.ignore_self !== false,
+    ignore_forwarded: value.ignore_forwarded !== false,
   };
 }
 
