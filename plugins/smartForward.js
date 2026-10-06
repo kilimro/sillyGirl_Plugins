@@ -16,9 +16,18 @@
 const { plugin, sender: s } = require("sillygirl");
 
 const config = new plugin.Form({
-  keywords: plugin.Form.textarea().title("触发关键词（多个用逗号分隔，模糊匹配）").default(""),
-  from_users: plugin.Form.textarea().title("触发用户ID（多个用逗号分隔，留空则不限制）").default(""),
-  match_logic: plugin.Form.select().title("匹配逻辑").option("or", "或（满足任意一个条件就触发）").option("and", "且（两个条件都满足才触发）").default("or"),
+  keywords: plugin.Form.string()
+    .title("触发关键词（多个用逗号分隔，模糊匹配）")
+    .widget("textarea")
+    .default(""),
+  from_users: plugin.Form.string()
+    .title("触发用户ID（多个用逗号分隔，留空则不限制）")
+    .widget("textarea")
+    .default(""),
+  match_logic: plugin.Form.string()
+    .title("匹配逻辑（填 or 或 and）")
+    .description("or = 或（满足任意一个条件就触发）；and = 且（两个条件都满足才触发）")
+    .default("or"),
   target_platform: plugin.Form.string().title("目标平台（留空则转发到当前平台）").default(""),
   target_chat_id: plugin.Form.string().title("目标群号/用户ID").required(),
   forward_prefix: plugin.Form.string().title("转发消息前缀").default("【转发】"),
