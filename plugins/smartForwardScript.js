@@ -2,7 +2,7 @@
 // [name: smartForwardScript]
 // [desc: 群消息转发：根据关键词/用户条件，把消息转发到指定目标群/用户，支持跨平台]
 // [author: Mianpro官方]
-// [version: v4.0.1]
+// [version: v4.0.2]
 // [rule: raw [\s\S]*]
 // [status: true]
 // [admin: false]
@@ -22,11 +22,7 @@ const config = new plugin.Form({
     .widget("textarea")
     .default(""),
   from_users: plugin.Form.string().title("触发用户ID（逗号分隔，留空=不限制）").widget("textarea").default(""),
-  match_logic: plugin.Form.select()
-    .title("匹配逻辑")
-    .option("or", "或（满足任一条件）")
-    .option("and", "且（两个条件都满足）")
-    .default("or"),
+  match_logic: plugin.Form.string().title("匹配逻辑（or=或 / and=且）").default("or"),
   target_platform: plugin.Form.string().title("目标平台（留空=当前平台）").description("如 wx、qq、tg 等"),
   target_bot_id: plugin.Form.string().title("目标Bot ID（留空=当前Bot）").description("跨平台时需要填目标平台的Bot ID"),
   target_chat_id: plugin.Form.string().title("目标群号/用户ID").required(),
