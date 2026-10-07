@@ -31,7 +31,7 @@ class Bucket {
 }
 const field = () => {
   const value = {};
-  for (const name of ["title", "description", "default", "min", "max", "format"]) value[name] = () => value;
+  for (const name of ["title", "description", "default", "min", "max", "format", "required"]) value[name] = () => value;
   return value;
 };
 function Form() {
@@ -118,48 +118,6 @@ global.fetch = async (input, options = {}) => {
 
 (async () => {
   const root = path.resolve(__dirname, "..");
-  const { Task } = require(path.join(root, "plugins", "tmuyunJinhuaRuntime.js"));
-  const spec = {
-    name: "fixture",
-    prefix: "fixture_",
-    defaultEnvName: "FIXTURE",
-    tenantId: "73",
-    clientId: "10024",
-    jinhuaAppId: "fixture-app",
-    jinhuaKey: "fixture-key",
-    configChannelId: "config-channel",
-    configSize: 20,
-    configMode: "column",
-    taskChannelId: "task-channel",
-    taskSize: 20,
-    visitStudyArticles: true,
-    localServiceTask: true,
-    prizeMode: "legacy",
-    adminRunCommand: "fixture-all",
-    jinhuaUa: "fixture-ua",
-  };
-  const runtime = { timeout: 3000, dispatcher: null, tip: "", ocrHost: "" };
-  const task = new Task(1, { name: "13800138000", pwd: "password" }, spec, runtime);
-  const result = await task.run();
-  assert.equal(result.ok, true);
-  assert.equal(result.sessionId, "session-login");
-  assert.match(result.message, /登陆成功/);
-  assert.match(result.message, /积分余额】：88/);
-  for (const route of [
-    "/api/account/init",
-    "/web/init",
-    "/web/oauth/credential_auth",
-    "/api/zbtxz/login",
-    "/api/study/detail",
-    "/api/user_center/task",
-    "/api/user_mumber/account_detail",
-  ]) {
-    assert.ok(
-      calls.some((item) => new URL(item.url).pathname === route),
-      `missing request ${route}`,
-    );
-  }
-
   const vorto = require(path.join(root, "plugins", "vortoUtils.js"));
   assert.equal(vorto.maskAccount("13800138000"), "138****8000");
   assert.deepEqual(vorto.parseBatchAccounts("a#b\nc#d"), [

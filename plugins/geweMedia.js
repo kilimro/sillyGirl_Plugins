@@ -8,8 +8,8 @@
 // [public: true]
 // [priority: 0]
 // [class: 模块]
-// [module: true]
 // [icon: https://api.920pdd.com/favicon.ico]
+// [module: true]
 // [origin: 自定义]
 // [depe: ["@aws-sdk/client-s3","silk-wasm"]]
 

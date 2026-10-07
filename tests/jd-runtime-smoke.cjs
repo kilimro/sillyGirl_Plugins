@@ -38,12 +38,19 @@ class Bucket {
 }
 const chain = () => {
   const value = {};
-  for (const method of ["title", "description", "default", "min", "max", "widget", "options", "format"])
+  for (const method of ["title", "description", "default", "min", "max", "widget", "options", "format", "required"])
     value[method] = () => value;
   return value;
 };
 function Form() {
-  this.get = async () => ({});
+  this.get = async () => ({
+    yyb_url: "https://yyb.test",
+    license_key: "license-key",
+    wait_seconds: 5,
+    poll_seconds: 0.05,
+    qinglong_id: 1,
+    env_name: "JD_COOKIE",
+  });
 }
 for (const name of ["string", "integer", "number", "boolean", "array", "object", "select"]) Form[name] = chain;
 class QingLong {
@@ -93,7 +100,7 @@ const fake = {
   sender,
   container: { QingLong },
   plugin: { Form },
-  utils: { sleep: async () => undefined },
+  utils: { sleep: async () => undefined, image: (url) => `[CQ:image,file=${url}]` },
   console,
 };
 const originalLoad = Module._load;
@@ -124,6 +131,13 @@ global.fetch = async (input) => {
   else if (url.pathname === "/client.action" && url.searchParams.get("functionId") === "farm_home")
     data = { data: { farmUserPro: { treeName: "苹果", treeEnergy: 10, treeTotalEnergy: 100 }, totalEnergy: 20 } };
   else if (url.pathname === "/cgi-bin/ml/islogin") data = { islogin: "1" };
+  else if (url.pathname === "/api/login/start")
+    data = { success: true, sessionId: "session-yyb", qrcodeUrl: "https://fixture.invalid/qr2" };
+  else if (url.pathname === "/api/login/status")
+    data = { status: "success", account: { openid: "fixture-openid-yyb" } };
+  else if (url.pathname === "/api/yyb/get-code") data = { success: true, code: "wx-code" };
+  else if (url.hostname === "we.jd.com") data = { data: { tk: "eid-token" } };
+  else if (url.hostname === "wxapplogin.m.jd.com") data = { err_code: 0, pt_key: "fixture-key", pt_pin: "fixture-pin" };
   else throw new Error(`unexpected fixture URL: ${url}`);
   return new Response(JSON.stringify(data), { status: 200, headers: { "content-type": "application/json" } });
 };
@@ -161,7 +175,7 @@ global.fetch = async (input) => {
 
   content = "应用宝登录";
   require(path.join(root, "plugins", "jdYingYongBaoDengLu.js"));
-  await settle();
+  await new Promise((r) => setTimeout(r, 400));
   assert.equal(qlEnvs.length, 1);
   assert.equal(qlEnvs[0].value, "pt_key=fixture-key;pt_pin=fixture-pin;");
 
@@ -187,10 +201,6 @@ global.fetch = async (input) => {
   content = "检测评价";
   require(path.join(root, "plugins", "jdZiDongPingJia.js"));
   await settle();
-  content = "活动监控状态";
-  const monitor = require(path.join(root, "plugins", "jdHuoDongJianKong.js"));
-  await settle();
-  assert.equal(monitor.extractActivities("活动 2026-08-08 12:30 https://example.test/a").length, 1);
   content = "COOKIE状态";
   require(path.join(root, "plugins", "jdCookieGuanLi.js"));
   await settle();

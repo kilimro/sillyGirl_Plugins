@@ -11,6 +11,7 @@
 // [class: 工具]
 // [icon: https://fc-ccimage.baidu.com/0/pic/-1452396718_1569556084_-7398448.jpg]
 // [carry: true]
+// [origin: 自定义]
 // [depe: ["./jdLegacyCore.js"]]
 
 "use strict";
@@ -70,30 +71,9 @@ function jdFingerEncode(obj) {
   return out + "/";
 }
 
-async function jdFetch(url, options = {}) {
-  const res = await fetch(url, {
-    signal: AbortSignal.timeout(options.timeout || 20000),
-    ...options,
-  });
-  return res;
-}
-
 /* 从 openid 换京东 cookie */
 async function exchangeJdCookie(yybUrl, licenseKey, openid) {
-  // 1. 先从 /accounts 找 openid 对应的账号 id
-  let ref = openid;
-  try {
-    const r = await fetch(`${yybUrl}/accounts?licenseKey=${encodeURIComponent(licenseKey)}`, {
-      signal: AbortSignal.timeout(15000),
-    });
-    const j = await r.json();
-    if (j?.code === 0 && Array.isArray(j.data)) {
-      const acc = j.data.find((a) => (a.openid || "") === openid);
-      if (acc?.id) ref = String(acc.id);
-    }
-  } catch (_) {}
-
-  // 2. 调 /api/yyb/get-code 拿微信小程序 code
+  // 调 /api/yyb/get-code 拿微信小程序 code
   const codeRes = await fetch(`${yybUrl}/api/yyb/get-code`, {
     method: "POST",
     headers: { "Content-Type": "application/json", "X-License-Key": licenseKey },

@@ -5,12 +5,14 @@
 // [version: v1.0.1]
 // [rule: ^京东上车$]
 // [cron: 0 0 * * *]
+// [web: true]
 // [status: true]
 // [admin: false]
 // [public: true]
-// [web: true]
+// [priority: 0]
 // [class: 工具]
 // [icon: https://fc-ccimage.baidu.com/0/pic/-1452396718_1569556084_-7398448.jpg]
+// [origin: 自定义]
 // [depe: []]
 
 const { user, plugin, sender: s, container, Bucket } = require("sillygirl");
@@ -28,8 +30,6 @@ const config = new plugin.Form({
   qinglong_id: plugin.Form.integer().title("青龙容器编号").min(1).default(1),
   env_name: plugin.Form.string().title("CK环境变量名").default("JD_COOKIE"),
 });
-
-const syncLog = new Bucket("jdShangChe.log");
 
 async function main() {
   const content = String((await s.getMsg()) || "").trim();

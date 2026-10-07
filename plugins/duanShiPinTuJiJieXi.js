@@ -36,8 +36,6 @@ async function main() {
   const cfg = (await form.get()) || {};
   const content = String((await s.getMsg()) || "").trim();
   const chatId = String((await s.getChatId()) || "private");
-  const userId = String((await s.getUserId()) || "");
-  const isPrivate = !chatId || chatId === userId;
   if (content === "短视频图集解析") return configure(chatId);
   const match = content.match(/https?:\/\/[^\s"'<>]+/i);
   if (!match) return;
@@ -104,32 +102,6 @@ async function parseMedia(url, cfg) {
   throw new Error(`全部解析接口失败：${last}`);
 }
 
-async function information(data, cfg) {
-  const out = [`▁▂【${data.name || "短视频"}${data.type || ""}】▂▁`];
-  if (data.cover) out.push(utils.image(data.cover));
-  if (data.author) out.push(`🗣️作者：${data.author}`);
-  if (data.uid) out.push(`🆔UID：${data.uid}`);
-  if (data.title) out.push(`📝标题：${data.title}`);
-  const stats = [
-    ["👍点赞", data.like],
-    ["💬评论", data.comment],
-    ["⭐收藏", data.collect],
-    ["🔄分享", data.share],
-  ]
-    .filter(([, value]) => value !== undefined && value !== null && value !== "")
-    .map(([name, value]) => `${name}:${value}`);
-  if (stats.length) out.push(stats.join("  "));
-  if (data.time) out.push(`🕐发布：${formatTime(data.time)}`);
-  for (const [name, value] of [
-    ["封面", data.cover],
-    ["头像", data.avatar],
-    ["音频", data.music],
-    ["视频", Array.isArray(data.url) ? "" : data.url],
-  ])
-    if (value) out.push(`${name}：${await maybeShort(String(value), cfg)}`);
-  return out.join("\n");
-}
-
 async function sendImages(images, cfg) {
   const rows = images.filter(Boolean).slice(0, Number(cfg.image_total) || 66),
     size = Number(cfg.image_batch) || 9;
@@ -158,11 +130,6 @@ async function maybeShort(url, cfg) {
   } catch {
     return url;
   }
-}
-function formatTime(value) {
-  const raw = Number(value),
-    date = new Date(String(Math.trunc(raw)).length === 10 ? raw * 1000 : raw);
-  return Number.isNaN(date.getTime()) ? String(value) : date.toLocaleString("zh-CN", { hour12: false });
 }
 
 main().catch((error) => s.reply(`短视频图集解析失败：${String(error?.message || error).slice(0, 300)}`));
