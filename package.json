@@ -9,12 +9,13 @@
     "lint": "eslint plugins scripts tests",
     "metadata:check": "node scripts/normalize-plugin-metadata.mjs && node scripts/update-plugin-dependencies.mjs --check && node scripts/audit-plugin-metadata.mjs",
     "index": "node scripts/generate-public-file-index.mjs",
-    "test:runtime": "node tests/shared-runtime-smoke.cjs && node tests/jd-runtime-smoke.cjs && node tests/openai-chat-smoke.cjs && node tests/ai-chat-tools-smoke.cjs",
+    "test:runtime": "node tests/shared-runtime-smoke.cjs && node tests/jd-runtime-smoke.cjs && node tests/openai-chat-smoke.cjs && node tests/ai-chat-tools-smoke.cjs && node tests/gewe-media-smoke.cjs",
     "verify": "npm run format:check && npm run lint && npm run metadata:check && npm run test:runtime"
   },
   "devDependencies": {
     "eslint": "9.39.1",
-    "prettier": "3.9.5"
+    "prettier": "3.9.5",
+    "silk-wasm": "^3.7.1"
   },
   "engines": {
     "node": ">=20"
