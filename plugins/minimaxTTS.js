@@ -2,7 +2,7 @@
 // [name: minimaxTTS]
 // [desc: 发"说你好"把文字转成语音，通过 CQ:record 回复。音色/模型/语速可配置。Gewe 平台用第三方 API 把 mp3 转成 silk 公网 URL 发送语音条；其他平台直接发 mp3 URL。]
 // [author: Mianpro官方]
-// [version: v4.0.0]
+// [version: v4.0.1]
 // [rule: ^说(.+)$]
 // [status: true]
 // [admin: false]
