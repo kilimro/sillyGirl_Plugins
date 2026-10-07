@@ -67,9 +67,31 @@ async function mp3ToSilkUrl(mp3Url, opts = {}) {
     headers: { "user-agent": DEFAULT_UA },
     signal: AbortSignal.timeout(Number(opts.timeout) || 30000),
   });
-  if (!res.ok) throw new Error(`mp3转silk API HTTP ${res.status}`);
-  const data = await res.json();
-  if (data && data.ok === false) throw new Error(`mp3转silk API 返回失败：${String(data.msg || "未知")}`);
+
+  // 先取文本，统一解析，避免 "not valid JSON" 这类难定位的报错
+  const text = await res.text().catch(() => "");
+  let data = null;
+  if (text) {
+    try {
+      data = JSON.parse(text);
+    } catch (_) {
+      throw new Error(
+        `mp3转silk API 返回不是 JSON（HTTP ${res.status}）——多半是 mp3 URL 失效或不可访问，或服务端报错。返回内容：${String(
+          text,
+        )
+          .replace(/\s+/g, " ")
+          .slice(0, 160)}`,
+      );
+    }
+  }
+
+  if (!res.ok) {
+    const detail = data && (data.msg || data.error);
+    throw new Error(`mp3转silk API HTTP ${res.status}${detail ? `：${detail}` : ""}`);
+  }
+  if (data && data.ok === false) {
+    throw new Error(`mp3转silk 失败：${String(data.error || data.msg || "未知")}`);
+  }
   const url = data && data[field];
   if (!url || typeof url !== "string") {
     throw new Error(`mp3转silk API 返回里找不到字段 ${field}`);
