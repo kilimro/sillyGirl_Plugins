@@ -1,8 +1,8 @@
 // [title: MiniMax 语音合成]
 // [name: minimaxTTS]
-// [desc: 发"说你好"把文字转成语音，通过 CQ:record 回复。音色/模型/语速可配置。Gewe 平台自动把语音转成 silk 并上传 R2，用公网 URL 发送语音条；其他平台直接发 mp3 URL。]
+// [desc: 发"说你好"把文字转成语音，通过 CQ:record 回复。音色/模型/语速可配置。Gewe 平台用第三方 API 把 mp3 转成 silk 公网 URL 发送语音条；其他平台直接发 mp3 URL。]
 // [author: Mianpro官方]
-// [version: v3.0.0]
+// [version: v4.0.0]
 // [rule: ^说(.+)$]
 // [status: true]
 // [admin: false]
@@ -11,12 +11,11 @@
 // [class: 工具]
 // [icon: https://platform.minimax.cn/docs/_mintlify/favicons/minimax-zh/DMz0Zpj7JInghPSs/_generated/favicon/android-chrome-192x192.png]
 // [origin: 自定义]
-// [depe: ["./geweMedia.js","./ttsCore.js"]]
+// [depe: ["./ttsCore.js"]]
 
 "use strict";
 const { sender: s, plugin } = require("sillygirl");
 const tts = require("./ttsCore.js");
-const gewe = require("./geweMedia.js");
 
 const form = new plugin.Form({
   api_key: plugin.Form.string().title("MiniMax API Key").default("").required(),
@@ -31,16 +30,52 @@ const form = new plugin.Form({
     .default("female-yujie")
     .required(),
   speed: plugin.Form.number().title("语速").min(0.5).max(2).default(1.0),
-  // 以下仅 Gewe 平台发送语音条时需要（转 silk 上传 R2 取公网 URL）
-  r2_account_id: plugin.Form.string().title("R2 账户ID（仅Gewe）").default(""),
-  r2_access_key: plugin.Form.string().title("R2 Access Key ID（仅Gewe）").default(""),
-  r2_secret_key: plugin.Form.string().title("R2 Secret Access Key（仅Gewe）").default(""),
-  r2_bucket: plugin.Form.string().title("R2 Bucket 名（仅Gewe）").default(""),
-  r2_public_url: plugin.Form.string()
-    .title("R2 公网访问域名（仅Gewe）")
-    .description("如 https://pub.example.com，上传后拼在 key 前")
+  // 以下仅 Gewe 平台发送语音条时需要：mp3 → silk 转换 API
+  convert_api: plugin.Form.string()
+    .title("mp3转silk API 地址（仅Gewe）")
+    .description("GET 请求，把 mp3 公网 URL 转成 silk 公网 URL。留空则 Gewe 平台不发语音条")
     .default(""),
+  convert_url_param: plugin.Form.string()
+    .title("API 请求参数名")
+    .description("传给 API 的 mp3 URL 参数名")
+    .default("url"),
+  convert_field: plugin.Form.string()
+    .title("返回值取值字段")
+    .description("从 API 返回 JSON 里取 silk 公网 URL 的字段")
+    .default("silk_url"),
 });
+
+// 默认浏览器 UA：该 API 不带 UA 会返回 403
+const DEFAULT_UA =
+  "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36";
+
+/**
+ * 调用第三方 API 把 mp3 公网 URL 转成 silk 公网 URL（供 Gewe 发语音条）。
+ * @param {string} mp3Url
+ * @param {{api:string, urlParam?:string, field?:string, timeout?:number}} [opts]
+ * @returns {Promise<string>} silk 公网 URL
+ */
+async function mp3ToSilkUrl(mp3Url, opts = {}) {
+  const api = String(opts.api || "").trim();
+  if (!api) throw new Error("未配置 mp3 转 silk 的 API 地址（convert_api）");
+  const urlParam = String(opts.urlParam || "").trim() || "url";
+  const field = String(opts.field || "").trim() || "silk_url";
+  const sep = api.includes("?") ? "&" : "?";
+  const target = `${api}${sep}${encodeURIComponent(urlParam)}=${encodeURIComponent(mp3Url)}`;
+  const res = await fetch(target, {
+    method: "GET",
+    headers: { "user-agent": DEFAULT_UA },
+    signal: AbortSignal.timeout(Number(opts.timeout) || 30000),
+  });
+  if (!res.ok) throw new Error(`mp3转silk API HTTP ${res.status}`);
+  const data = await res.json();
+  if (data && data.ok === false) throw new Error(`mp3转silk API 返回失败：${String(data.msg || "未知")}`);
+  const url = data && data[field];
+  if (!url || typeof url !== "string") {
+    throw new Error(`mp3转silk API 返回里找不到字段 ${field}`);
+  }
+  return url;
+}
 
 let cfg = {};
 async function main() {
@@ -53,7 +88,7 @@ async function main() {
   const text = m[1].trim();
   if (!text) return;
 
-  // 平台判断：只有 Gewe 需要 silk + 公网 URL 才能发语音条
+  // 平台判断：只有 Gewe 需要把 mp3 转成 silk 公网 URL 才能发语音条
   const platform = String((await s.getPlatform()) || "").toLowerCase();
   const isGewe = platform === "gewe";
 
@@ -67,28 +102,15 @@ async function main() {
     });
 
     if (isGewe) {
-      const r2ok =
-        String(cfg.r2_account_id || "").trim() &&
-        String(cfg.r2_access_key || "").trim() &&
-        String(cfg.r2_secret_key || "").trim() &&
-        String(cfg.r2_bucket || "").trim() &&
-        String(cfg.r2_public_url || "").trim();
-      if (!r2ok) {
-        return s.reply("Gewe 平台发语音条需配置 R2 五件套（账户ID/AccessKey/SecretKey/Bucket/公网域名）");
+      if (!String(cfg.convert_api || "").trim()) {
+        return s.reply("Gewe 平台发语音条需配置 mp3转silk 的 API 地址（convert_api）");
       }
-      gewe.configure({
-        upload: {
-          provider: "r2",
-          accountId: String(cfg.r2_account_id).trim(),
-          accessKeyId: String(cfg.r2_access_key).trim(),
-          secretAccessKey: String(cfg.r2_secret_key).trim(),
-          bucketName: String(cfg.r2_bucket).trim(),
-          publicBaseUrl: String(cfg.r2_public_url).trim(),
-        },
+      const silkUrl = await mp3ToSilkUrl(url, {
+        api: cfg.convert_api,
+        urlParam: cfg.convert_url_param,
+        field: cfg.convert_field,
       });
-      // mp3 URL → 本地转 silk → 上传 R2 → 公网 silk URL
-      const silkUrl = await gewe.toSilkPublicUrl(url);
-      return s.reply(gewe.cqRecord(silkUrl));
+      return s.reply(`[CQ:record,url=${silkUrl}]`);
     }
 
     // 其他平台：直接发 mp3 URL 的 record
