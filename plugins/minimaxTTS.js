@@ -11,11 +11,12 @@
 // [class: 工具]
 // [icon: https://platform.minimax.cn/docs/_mintlify/favicons/minimax-zh/DMz0Zpj7JInghPSs/_generated/favicon/android-chrome-192x192.png]
 // [origin: 自定义]
-// [depe: ["./ttsCore.js"]]
+// [depe: ["./geweCore.js","./ttsCore.js"]]
 
 "use strict";
 const { sender: s, plugin } = require("sillygirl");
 const tts = require("./ttsCore.js");
+const geweCore = require("./geweCore.js");
 
 const form = new plugin.Form({
   api_key: plugin.Form.string().title("MiniMax API Key").default("").required(),
@@ -96,7 +97,9 @@ async function mp3ToSilkUrl(mp3Url, opts = {}) {
   if (!url || typeof url !== "string") {
     throw new Error(`mp3转silk API 返回里找不到字段 ${field}`);
   }
-  return url;
+  // convert API 同时返回语音时长（毫秒），供 Gewe postVoice 使用
+  const duration = Number(data.duration) || 0;
+  return { url, duration };
 }
 
 let cfg = {};
@@ -127,12 +130,16 @@ async function main() {
       if (!String(cfg.convert_api || "").trim()) {
         return s.reply("Gewe 平台发语音条需配置 mp3转silk 的 API 地址（convert_api）");
       }
-      const silkUrl = await mp3ToSilkUrl(url, {
+      const { url: silkUrl, duration } = await mp3ToSilkUrl(url, {
         api: cfg.convert_api,
         urlParam: cfg.convert_url_param,
         field: cfg.convert_field,
       });
-      return s.reply(`[CQ:record,url=${silkUrl}]`);
+      // 走 Gewe postVoice 直接发语音条（配置从 gewe 桶自动读取，voiceDuration 用 convert 返回的时长）
+      const toWxid = String((await s.getChatId()) || (await s.getUserId()) || "").trim();
+      if (!toWxid) return s.reply("无法确定接收人(toWxid)");
+      await geweCore.sendVoice({ toWxid, voiceUrl: silkUrl, voiceDuration: duration });
+      return s.reply("语音已发送");
     }
 
     // 其他平台：直接发 mp3 URL 的 record
