@@ -2,7 +2,7 @@
 // [name: geweCore]
 // [desc: 仅供 Gewe 平台机器人使用的公共依赖模块。从 gewe 桶读取 api_base/app_id/token（后台已接入，无需用户重复填写），封装 Gewe 消息 API。当前提供 sendVoice（postVoice 发语音条），后续可扩展其它 Gewe 独有接口。非 Gewe 平台插件请勿引用。]
 // [author: Mianpro官方]
-// [version: v1.0.2]
+// [version: v1.0.3]
 // [status: true]
 // [admin: false]
 // [public: true]
@@ -79,7 +79,10 @@ async function sendVoice({ toWxid, voiceUrl, voiceDuration }) {
     throw new Error(`Gewe postVoice 返回不是 JSON（HTTP ${res.status}）：${String(text).slice(0, 160)}`);
   }
   if (!res.ok || (data && data.ret && data.ret !== 200)) {
-    throw new Error(`Gewe 发语音失败：${data?.msg || `HTTP ${res.status}`}`);
+    // 输出完整 detail，便于定位（如 BaseResponse.ret / VoiceLength）
+    const detail = data?.data?.detail ? `；detail=${String(data.data.detail).slice(0, 400)}` : "";
+    const code = data?.data?.code ? `；code=${data.data.code}` : "";
+    throw new Error(`Gewe 发语音失败：${data?.msg || `HTTP ${res.status}`}${code}${detail}`);
   }
   return data;
 }
