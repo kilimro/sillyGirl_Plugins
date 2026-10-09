@@ -1,8 +1,8 @@
 // [title: Gewe机器人公共模块]
 // [name: geweCore]
-// [desc: 仅供 Gewe 平台机器人使用的公共依赖模块。从 gewe 桶读取 api_base/app_id/token（后台已接入，无需用户重复填写），封装 Gewe 消息与联系人 API：发语音、发小程序、发名片、发链接、发文件、发 appmsg、获取简要信息。后续可扩展其它 Gewe 独有接口。非 Gewe 平台插件请勿引用。]
+// [desc: 仅供 Gewe 平台机器人使用的公共依赖模块。从 gewe 桶读取 api_base/app_id/token（后台已接入，无需用户重复填写），封装 Gewe 消息与联系人 API：发语音、发小程序、发名片、发链接、发文件、发 appmsg、获取简要信息、获取个人资料。后续可扩展其它 Gewe 独有接口。非 Gewe 平台插件请勿引用。]
 // [author: Mianpro官方]
-// [version: v1.2.0]
+// [version: v1.3.0]
 // [status: true]
 // [admin: false]
 // [public: true]
@@ -171,6 +171,15 @@ async function getBriefInfo(wxids) {
 }
 
 /**
+ * 获取机器人自己的个人资料（用于取自身 wxid 等）。
+ * @returns {Promise<object>} 个人资料对象（含 wxid/nickName 等字段）
+ */
+async function getProfile() {
+  const data = await request("/gewe/v2/api/personal/getProfile", {}, "Gewe 获取个人资料失败");
+  return data?.data || null;
+}
+
+/**
  * 探测 mp3 URL 是否可访问（带浏览器 UA）。
  * @param {string} mp3Url
  * @returns {Promise<{ok:boolean, status?:number}>}
@@ -253,6 +262,7 @@ module.exports = {
   sendFile,
   sendAppMsg,
   getBriefInfo,
+  getProfile,
   mp3ToSilkUrl,
   probeMp3Url,
   sendVoiceFromMp3,

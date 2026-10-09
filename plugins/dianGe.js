@@ -1,8 +1,8 @@
 // [title: 点歌]
 // [name: dianGe]
-// [desc: 发"点歌xxx"或"来一首xxx"搜索并分享歌曲。Gewe 平台发送音乐分享卡片（appmsg），其他平台发送纯文本信息。歌曲搜索 API 完整地址、音乐卡片发送者均可在配置中设置。]
+// [desc: 发"点歌xxx"或"来一首xxx"搜索并分享歌曲。Gewe 平台发送音乐分享卡片（appmsg，发送者自动取机器人自身），其他平台发送纯文本信息。歌曲搜索 API 完整地址、音乐卡片应用标识均可在配置中设置。]
 // [author: Mianpro官方]
-// [version: v1.1.0]
+// [version: v1.2.0]
 // [rule: ^(点歌|来一首|来首)\s*(.+)$]
 // [status: true]
 // [admin: false]
@@ -22,9 +22,9 @@ const form = new plugin.Form({
     .title("歌曲搜索 API 地址")
     .description("完整请求地址（含 key 与参数名，以 = 结尾，插件自动拼接歌曲名）。例：https://xxx.com/api?key=abc&msg=")
     .default(""),
-  fromusername: plugin.Form.string()
-    .title("音乐卡片发送者")
-    .description("Gewe 音乐分享卡片的 fromusername，必填（留空则 Gewe 不发卡片）")
+  appid: plugin.Form.string()
+    .title("音乐卡片应用标识")
+    .description("Gewe 音乐分享卡片 appmsg 的 appid。留空则使用默认值")
     .default(""),
 });
 
@@ -41,10 +41,17 @@ function escapeXml(str) {
 /**
  * 组装音乐分享卡片 XML（type=76）。
  * 字段说明：title=歌名、des=歌手、dataurl=播放地址、songalbumurl=封面。
+ * @param {string} song 歌名
+ * @param {string} singer 歌手
+ * @param {string} url 播放地址
+ * @param {string} cover 封面
+ * @param {string} fromusername 发送者（机器人自身）
+ * @param {string} appid 应用标识（可配置，缺省用默认值）
  */
-function buildAppmsgXml(song, singer, url, cover, fromusername) {
+function buildAppmsgXml(song, singer, url, cover, fromusername, appid) {
+  const useAppid = String(appid || "").trim() || "wx0aa69088a182a76e";
   return (
-    `<appmsg appid="wx0aa69088a182a76e" sdkver="0">\n` +
+    `<appmsg appid="${escapeXml(useAppid)}" sdkver="0">\n` +
     `\t\t<title>${escapeXml(song)}</title>\n` +
     `\t\t<des>${escapeXml(singer)}</des>\n` +
     `\t\t<type>76</type>\n` +
@@ -112,11 +119,13 @@ async function main() {
 
     // 3. 按平台发送
     if (isGewe) {
-      const fromusername = String(cfg.fromusername || "").trim();
+      // 发送者取机器人自身（getProfile 返回的 wxid）
+      const profile = await geweCore.getProfile();
+      const fromusername = String((profile && profile.wxid) || "").trim();
       if (!fromusername) {
-        return s.reply("点歌失败：请先配置音乐卡片发送者（fromusername）");
+        return s.reply("点歌失败：无法获取机器人自身标识");
       }
-      const appmsg = buildAppmsgXml(song, singer, url, cover, fromusername);
+      const appmsg = buildAppmsgXml(song, singer, url, cover, fromusername, cfg.appid);
       await geweCore.sendAppMsg({ toWxid, appmsg });
       return; // 卡片本身就是结果，不再回复冗余文字
     }
