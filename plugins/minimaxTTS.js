@@ -2,7 +2,7 @@
 // [name: minimaxTTS]
 // [desc: 发"说你好"把文字转成语音，通过 CQ:record 回复。音色/模型/语速可配置。Gewe 平台用第三方 API 把 mp3 转成 silk 公网 URL 发送语音条；其他平台直接发 mp3 URL。]
 // [author: Mianpro官方]
-// [version: v4.1.0]
+// [version: v4.1.1]
 // [rule: ^说(.+)$]
 // [status: true]
 // [admin: false]
@@ -51,14 +51,40 @@ const DEFAULT_UA =
   "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36";
 
 /**
+ * 探测 mp3 URL 是否可访问（带浏览器 UA，只拉前 1KB，用于区分 URL 本身失效 vs convert 服务端拉取失败）。
+ * @param {string} mp3Url
+ * @returns {Promise<{ok:boolean, status?:number, error?:string}>}
+ */
+async function probeMp3Url(mp3Url) {
+  try {
+    const res = await fetch(mp3Url, {
+      method: "GET",
+      headers: { "user-agent": DEFAULT_UA, range: "bytes=0-1023" },
+      signal: AbortSignal.timeout(8000),
+    });
+    return { ok: res.ok, status: res.status };
+  } catch (error) {
+    return { ok: false, error: String(error?.message || error) };
+  }
+}
+
+/**
  * 调用第三方 API 把 mp3 公网 URL 转成 silk 公网 URL（供 Gewe 发语音条）。
  * @param {string} mp3Url
  * @param {{api:string, urlParam?:string, field?:string, timeout?:number}} [opts]
- * @returns {Promise<string>} silk 公网 URL
+ * @returns {Promise<{url:string, duration:number}>} silk 公网 URL 与时长（毫秒）
  */
 async function mp3ToSilkUrl(mp3Url, opts = {}) {
   const api = String(opts.api || "").trim();
   if (!api) throw new Error("未配置 mp3 转 silk 的 API 地址（convert_api）");
+  // 先探测 mp3 URL 可访问性，区分"URL 失效"和"convert 服务端拉取失败"
+  const probe = await probeMp3Url(mp3Url);
+  if (!probe.ok) {
+    throw new Error(
+      `mp3 URL 不可访问（探测 HTTP ${probe.status || "失败"}${probe.error ? `：${probe.error}` : ""}）——` +
+        `MiniMax 临时链接可能已失效或需浏览器 UA。完整 URL：${String(mp3Url).slice(0, 300)}`,
+    );
+  }
   const urlParam = String(opts.urlParam || "").trim() || "url";
   const field = String(opts.field || "").trim() || "silk_url";
   const sep = api.includes("?") ? "&" : "?";
@@ -77,11 +103,9 @@ async function mp3ToSilkUrl(mp3Url, opts = {}) {
       data = JSON.parse(text);
     } catch (_) {
       throw new Error(
-        `mp3转silk API 返回不是 JSON（HTTP ${res.status}）——多半是 mp3 URL 失效或不可访问，或服务端报错。返回内容：${String(
-          text,
-        )
-          .replace(/\s+/g, " ")
-          .slice(0, 160)}`,
+        `mp3转silk API 返回不是 JSON（HTTP ${res.status}）。mp3 URL 探测可达（HTTP ${probe.status}），` +
+          `多半是 convert 服务端 file_get_contents 无浏览器 UA 被 OSS 拒，或服务端报错。` +
+          `返回内容：${String(text).replace(/\s+/g, " ").slice(0, 300)}。mp3 URL：${String(mp3Url).slice(0, 300)}`,
       );
     }
   }
