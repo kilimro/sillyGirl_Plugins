@@ -2,7 +2,7 @@
 // [name: minimaxTTS]
 // [desc: 发"说你好"把文字转成语音，通过 CQ:record 回复。音色/模型/语速可配置。Gewe 平台用第三方 API 把 mp3 转成 silk 公网 URL 发送语音条；其他平台直接发 mp3 URL。]
 // [author: Mianpro官方]
-// [version: v4.1.3]
+// [version: v4.2.0]
 // [rule: ^说(.+)$]
 // [status: true]
 // [admin: false]
@@ -46,78 +46,6 @@ const form = new plugin.Form({
     .default("silk_url"),
 });
 
-// 默认浏览器 UA：该 API 不带 UA 会返回 403
-const DEFAULT_UA =
-  "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36";
-
-/**
- * 探测 mp3 URL 是否可访问（带浏览器 UA，只拉前 1KB，用于区分 URL 本身失效 vs convert 服务端拉取失败）。
- * @param {string} mp3Url
- * @returns {Promise<{ok:boolean, status?:number, error?:string}>}
- */
-async function probeMp3Url(mp3Url) {
-  try {
-    const res = await fetch(mp3Url, {
-      method: "GET",
-      headers: { "user-agent": DEFAULT_UA, range: "bytes=0-1023" },
-      signal: AbortSignal.timeout(8000),
-    });
-    return { ok: res.ok, status: res.status };
-  } catch (error) {
-    return { ok: false, error: String(error?.message || error) };
-  }
-}
-
-/**
- * 调用第三方 API 把 mp3 公网 URL 转成 silk 公网 URL（供 Gewe 发语音条）。
- * @param {string} mp3Url
- * @param {{api:string, urlParam?:string, field?:string, timeout?:number}} [opts]
- * @returns {Promise<{url:string, duration:number}>} silk 公网 URL 与时长（毫秒）
- */
-async function mp3ToSilkUrl(mp3Url, opts = {}) {
-  const api = String(opts.api || "").trim();
-  if (!api) throw new Error("未配置 mp3 转 silk 的 API 地址（convert_api）");
-  // 先探测 mp3 URL 可访问性
-  const probe = await probeMp3Url(mp3Url);
-  if (!probe.ok) {
-    throw new Error(`mp3转silk 失败：mp3 无法访问${probe.status ? `（HTTP ${probe.status}）` : ""}`);
-  }
-  const urlParam = String(opts.urlParam || "").trim() || "url";
-  const field = String(opts.field || "").trim() || "silk_url";
-  const sep = api.includes("?") ? "&" : "?";
-  const target = `${api}${sep}${encodeURIComponent(urlParam)}=${encodeURIComponent(mp3Url)}`;
-  const res = await fetch(target, {
-    method: "GET",
-    headers: { "user-agent": DEFAULT_UA },
-    signal: AbortSignal.timeout(Number(opts.timeout) || 30000),
-  });
-
-  // 先取文本，统一解析
-  const text = await res.text().catch(() => "");
-  let data = null;
-  if (text) {
-    try {
-      data = JSON.parse(text);
-    } catch (_) {
-      throw new Error(`mp3转silk 失败：API 返回不是 JSON（HTTP ${res.status}）`);
-    }
-  }
-
-  if (!res.ok) {
-    throw new Error(`mp3转silk 失败：HTTP ${res.status}`);
-  }
-  if (data && data.ok === false) {
-    throw new Error(`mp3转silk 失败：${String(data.error || data.msg || "转换失败")}`);
-  }
-  const url = data && data[field];
-  if (!url || typeof url !== "string") {
-    throw new Error(`mp3转silk 失败：返回缺少字段 ${field}`);
-  }
-  // convert API 同时返回语音时长（毫秒），供 Gewe postVoice 使用
-  const duration = Number(data.duration) || 0;
-  return { url, duration };
-}
-
 let cfg = {};
 async function main() {
   cfg = (await form.get()) || {};
@@ -146,7 +74,7 @@ async function main() {
       if (!String(cfg.convert_api || "").trim()) {
         return s.reply("Gewe 平台发语音条需配置 mp3转silk 的 API 地址（convert_api）");
       }
-      const { url: silkUrl, duration } = await mp3ToSilkUrl(url, {
+      const { url: silkUrl, duration } = await geweCore.mp3ToSilkUrl(url, {
         api: cfg.convert_api,
         urlParam: cfg.convert_url_param,
         field: cfg.convert_field,

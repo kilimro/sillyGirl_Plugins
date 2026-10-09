@@ -2,7 +2,7 @@
 // [name: aiChat]
 // [desc: 接入任意 OpenAI 兼容接口的 AI 助手。消息必须以 ai/AI/机器人/小助手 开头才会触发，其他命令走原插件不抢。要改触发词请编辑下方 [rule] 那一行的正则。支持 BaseURL/Key/模型/长系统提示词（变量插值）/上下文轮数/工具调用。]
 // [author: Mianpro官方]
-// [version: v2.2.1]
+// [version: v2.3.0]
 // [rule: ^(ai|起床了绵绵|Ai|机器人|小助手)[，,、:：\s]*[\s\S]*$]
 // [status: true]
 // [admin: false]
@@ -11,12 +11,13 @@
 // [class: 大模型]
 // [icon: https://ecmb.bdimg.com/tam-ogel/-341441530_114552854_88_88.png]
 // [origin: 自定义]
-// [depe: ["./memoryCore.js","./openaiChatCore.js","./ttsCore.js"]]
+// [depe: ["./geweCore.js","./memoryCore.js","./openaiChatCore.js","./ttsCore.js"]]
 
 const { sender: s, Bucket, plugin } = require("sillygirl");
 const ai = require("./openaiChatCore.js");
 const mem = require("./memoryCore.js");
 const tts = require("./ttsCore.js");
+const geweCore = require("./geweCore.js");
 
 const HISTORY_BUCKET = "openai_chat_history";
 const MAX_CONTENT_LEN = 1500;
@@ -88,6 +89,19 @@ const form = new plugin.Form({
     .title("自定义 TTS 音频 URL 字段路径")
     .description("返回 JSON 里音频 URL 的路径，如 data.audio 或 url")
     .default("url"),
+  // 以下仅 Gewe 平台发语音条时需要：mp3 → silk 转换 API
+  convert_api: plugin.Form.string()
+    .title("mp3转silk API 地址（仅Gewe）")
+    .description("GET 请求，把 mp3 公网 URL 转成 silk 公网 URL。留空则 Gewe 平台语音回退文字")
+    .default(""),
+  convert_url_param: plugin.Form.string()
+    .title("API 请求参数名")
+    .description("传给 API 的 mp3 URL 参数名")
+    .default("url"),
+  convert_field: plugin.Form.string()
+    .title("返回值取值字段")
+    .description("从 API 返回 JSON 里取 silk 公网 URL 的字段")
+    .default("silk_url"),
 });
 
 const historyStore = new Bucket(HISTORY_BUCKET);
@@ -367,6 +381,21 @@ async function main() {
                 voiceId: cfg.tts_voice_id,
               };
         const audioUrl = await tts.synthesize(replyText, ttsOpts);
+        // 平台判断：Gewe 需把 mp3 转成 silk 公网 URL 才能发语音条
+        const platform = String((await s.getPlatform()) || "").toLowerCase();
+        if (platform === "gewe") {
+          if (!String(cfg.convert_api || "").trim()) {
+            throw new Error("Gewe 平台发语音条需配置 mp3转silk 的 API 地址（convert_api）");
+          }
+          const toWxid = String((await s.getChatId()) || (await s.getUserId()) || "").trim();
+          if (!toWxid) throw new Error("无法确定接收人(toWxid)");
+          await geweCore.sendVoiceFromMp3(toWxid, audioUrl, {
+            api: cfg.convert_api,
+            urlParam: cfg.convert_url_param,
+            field: cfg.convert_field,
+          });
+          return;
+        }
         await s.reply(`[CQ:record,url=${audioUrl}]`);
       } catch (ttsErr) {
         await s.reply(`语音合成失败，文字回复：${replyText}`);

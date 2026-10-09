@@ -1,8 +1,8 @@
 // [title: Gewe机器人公共模块]
 // [name: geweCore]
-// [desc: 仅供 Gewe 平台机器人使用的公共依赖模块。从 gewe 桶读取 api_base/app_id/token（后台已接入，无需用户重复填写），封装 Gewe 消息 API。当前提供 sendVoice（postVoice 发语音条），后续可扩展其它 Gewe 独有接口。非 Gewe 平台插件请勿引用。]
+// [desc: 仅供 Gewe 平台机器人使用的公共依赖模块。从 gewe 桶读取 api_base/app_id/token（后台已接入，无需用户重复填写），封装 Gewe 消息 API。提供 mp3→silk→postVoice 一条龙发语音，以及发送语音条。后续可扩展其它 Gewe 独有接口。非 Gewe 平台插件请勿引用。]
 // [author: Mianpro官方]
-// [version: v1.0.3]
+// [version: v1.1.0]
 // [status: true]
 // [admin: false]
 // [public: true]
@@ -18,6 +18,10 @@ const { Bucket } = require("sillygirl");
 
 const BUCKET = "gewe";
 const TIMEOUT = 15000;
+
+// 默认浏览器 UA：convert API 不带 UA 会返回 403
+const DEFAULT_UA =
+  "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36";
 
 /**
  * 从 gewe 桶读取 Gewe 接入配置（后台已填写，无需用户重复输入）。
@@ -79,15 +83,88 @@ async function sendVoice({ toWxid, voiceUrl, voiceDuration }) {
     throw new Error(`Gewe postVoice 返回不是 JSON（HTTP ${res.status}）：${String(text).slice(0, 160)}`);
   }
   if (!res.ok || (data && data.ret && data.ret !== 200)) {
-    // 输出完整 detail，便于定位（如 BaseResponse.ret / VoiceLength）
-    const detail = data?.data?.detail ? `；detail=${String(data.data.detail).slice(0, 400)}` : "";
-    const code = data?.data?.code ? `；code=${data.data.code}` : "";
-    throw new Error(`Gewe 发语音失败：${data?.msg || `HTTP ${res.status}`}${code}${detail}`);
+    throw new Error(`Gewe 发语音失败：${data?.msg || `HTTP ${res.status}`}`);
   }
   return data;
+}
+
+/**
+ * 探测 mp3 URL 是否可访问（带浏览器 UA）。
+ * @param {string} mp3Url
+ * @returns {Promise<{ok:boolean, status?:number}>}
+ */
+async function probeMp3Url(mp3Url) {
+  try {
+    const res = await fetch(mp3Url, {
+      method: "GET",
+      headers: { "user-agent": DEFAULT_UA, range: "bytes=0-1023" },
+      signal: AbortSignal.timeout(8000),
+    });
+    return { ok: res.ok, status: res.status };
+  } catch (_) {
+    return { ok: false };
+  }
+}
+
+/**
+ * 调用第三方 API 把 mp3 公网 URL 转成 silk 公网 URL。
+ * @param {string} mp3Url
+ * @param {{api:string, urlParam?:string, field?:string, timeout?:number}} [opts]
+ * @returns {Promise<{url:string, duration:number}>} silk 公网 URL 与时长（毫秒）
+ */
+async function mp3ToSilkUrl(mp3Url, opts = {}) {
+  const api = String(opts.api || "").trim();
+  if (!api) throw new Error("mp3转silk 失败：未配置转换 API 地址");
+  const probe = await probeMp3Url(mp3Url);
+  if (!probe.ok) {
+    throw new Error(`mp3转silk 失败：mp3 无法访问${probe.status ? `（HTTP ${probe.status}）` : ""}`);
+  }
+  const urlParam = String(opts.urlParam || "").trim() || "url";
+  const field = String(opts.field || "").trim() || "silk_url";
+  const sep = api.includes("?") ? "&" : "?";
+  const target = `${api}${sep}${encodeURIComponent(urlParam)}=${encodeURIComponent(mp3Url)}`;
+  const res = await fetch(target, {
+    method: "GET",
+    headers: { "user-agent": DEFAULT_UA },
+    signal: AbortSignal.timeout(Number(opts.timeout) || 30000),
+  });
+  const text = await res.text().catch(() => "");
+  let data = null;
+  if (text) {
+    try {
+      data = JSON.parse(text);
+    } catch (_) {
+      throw new Error(`mp3转silk 失败：API 返回不是 JSON（HTTP ${res.status}）`);
+    }
+  }
+  if (!res.ok) throw new Error(`mp3转silk 失败：HTTP ${res.status}`);
+  if (data && data.ok === false) {
+    throw new Error(`mp3转silk 失败：${String(data.error || data.msg || "转换失败")}`);
+  }
+  const url = data && data[field];
+  if (!url || typeof url !== "string") {
+    throw new Error(`mp3转silk 失败：返回缺少字段 ${field}`);
+  }
+  const duration = Number(data.duration) || 0;
+  return { url, duration };
+}
+
+/**
+ * 一条龙：mp3 公网 URL → silk → Gewe postVoice 发语音条。
+ * @param {string} toWxid
+ * @param {string} mp3Url
+ * @param {{api:string, urlParam?:string, field?:string, timeout?:number}} [opts]
+ * @returns {Promise<object>} Gewe 原始响应
+ */
+async function sendVoiceFromMp3(toWxid, mp3Url, opts = {}) {
+  const { url: silkUrl, duration } = await mp3ToSilkUrl(mp3Url, opts);
+  return sendVoice({ toWxid, voiceUrl: silkUrl, voiceDuration: duration });
 }
 
 module.exports = {
   getGeweConfig,
   sendVoice,
+  mp3ToSilkUrl,
+  probeMp3Url,
+  sendVoiceFromMp3,
 };
