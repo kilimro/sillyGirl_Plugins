@@ -2,7 +2,7 @@
 // [name: minimaxTTS]
 // [desc: 发"说你好"把文字转成语音，通过 CQ:record 回复。音色/模型/语速可配置。Gewe 平台用第三方 API 把 mp3 转成 silk 公网 URL 发送语音条；其他平台直接发 mp3 URL。]
 // [author: Mianpro官方]
-// [version: v4.1.2]
+// [version: v4.1.3]
 // [rule: ^说(.+)$]
 // [status: true]
 // [admin: false]
@@ -77,13 +77,10 @@ async function probeMp3Url(mp3Url) {
 async function mp3ToSilkUrl(mp3Url, opts = {}) {
   const api = String(opts.api || "").trim();
   if (!api) throw new Error("未配置 mp3 转 silk 的 API 地址（convert_api）");
-  // 先探测 mp3 URL 可访问性，区分"URL 失效"和"convert 服务端拉取失败"
+  // 先探测 mp3 URL 可访问性
   const probe = await probeMp3Url(mp3Url);
   if (!probe.ok) {
-    throw new Error(
-      `mp3 URL 不可访问（探测 HTTP ${probe.status || "失败"}${probe.error ? `：${probe.error}` : ""}）——` +
-        `MiniMax 临时链接可能已失效或需浏览器 UA。完整 URL：${String(mp3Url).slice(0, 300)}`,
-    );
+    throw new Error(`mp3转silk 失败：mp3 无法访问${probe.status ? `（HTTP ${probe.status}）` : ""}`);
   }
   const urlParam = String(opts.urlParam || "").trim() || "url";
   const field = String(opts.field || "").trim() || "silk_url";
@@ -95,31 +92,26 @@ async function mp3ToSilkUrl(mp3Url, opts = {}) {
     signal: AbortSignal.timeout(Number(opts.timeout) || 30000),
   });
 
-  // 先取文本，统一解析，避免 "not valid JSON" 这类难定位的报错
+  // 先取文本，统一解析
   const text = await res.text().catch(() => "");
   let data = null;
   if (text) {
     try {
       data = JSON.parse(text);
     } catch (_) {
-      throw new Error(
-        `mp3转silk API 返回不是 JSON（HTTP ${res.status}）。mp3 URL 探测可达（HTTP ${probe.status}），` +
-          `多半是 convert 服务端 file_get_contents 无浏览器 UA 被 OSS 拒，或服务端报错。` +
-          `返回内容：${String(text).replace(/\s+/g, " ").slice(0, 300)}。mp3 URL：${String(mp3Url).slice(0, 300)}`,
-      );
+      throw new Error(`mp3转silk 失败：API 返回不是 JSON（HTTP ${res.status}）`);
     }
   }
 
   if (!res.ok) {
-    const detail = data && (data.msg || data.error);
-    throw new Error(`mp3转silk API HTTP ${res.status}${detail ? `：${detail}` : ""}`);
+    throw new Error(`mp3转silk 失败：HTTP ${res.status}`);
   }
   if (data && data.ok === false) {
-    throw new Error(`mp3转silk 失败：${String(data.error || data.msg || "未知")}`);
+    throw new Error(`mp3转silk 失败：${String(data.error || data.msg || "转换失败")}`);
   }
   const url = data && data[field];
   if (!url || typeof url !== "string") {
-    throw new Error(`mp3转silk API 返回里找不到字段 ${field}`);
+    throw new Error(`mp3转silk 失败：返回缺少字段 ${field}`);
   }
   // convert API 同时返回语音时长（毫秒），供 Gewe postVoice 使用
   const duration = Number(data.duration) || 0;
