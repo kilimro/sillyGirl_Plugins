@@ -2,7 +2,7 @@
 // [name: geweCore]
 // [desc: 仅供 Gewe 平台机器人使用的公共依赖模块。从 gewe 桶读取 api_base/app_id/token（后台已接入，无需用户重复填写），封装 Gewe 消息 API。当前提供 sendVoice（postVoice 发语音条），后续可扩展其它 Gewe 独有接口。非 Gewe 平台插件请勿引用。]
 // [author: Mianpro官方]
-// [version: v1.0.0]
+// [version: v1.0.1]
 // [status: true]
 // [admin: false]
 // [public: true]
@@ -24,7 +24,7 @@ const TIMEOUT = 15000;
  * @returns {{apiBase:string, appId:string, token:string}}
  */
 function getGeweConfig() {
-  const bucket = Bucket(BUCKET);
+  const bucket = new Bucket(BUCKET);
   return {
     apiBase: String(bucket.get("api_base") || "").replace(/\/+$/, ""),
     appId: String(bucket.get("app_id") || ""),
