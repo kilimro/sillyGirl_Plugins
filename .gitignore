@@ -15,3 +15,6 @@ node_modules/
 *.pfx
 credentials*.json
 backup/*
+
+# Local test plugins (never publish)
+local-tests/
