@@ -264,7 +264,7 @@
     "name": "geweCore",
     "title": "Gewe机器人公共模块",
     "author": "Mianpro官方",
-    "version": "v1.0.1",
+    "version": "v1.0.2",
     "desc": "仅供 Gewe 平台机器人使用的公共依赖模块。从 gewe 桶读取 api_base/app_id/token（后台已接入，无需用户重复填写），封装 Gewe 消息 API。当前提供 sendVoice（postVoice 发语音条），后续可扩展其它 Gewe 独有接口。非 Gewe 平台插件请勿引用。",
     "icon": "https://api.920pdd.com/favicon.ico",
     "class": "模块",

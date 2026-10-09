@@ -2,7 +2,7 @@
 // [name: geweCore]
 // [desc: 仅供 Gewe 平台机器人使用的公共依赖模块。从 gewe 桶读取 api_base/app_id/token（后台已接入，无需用户重复填写），封装 Gewe 消息 API。当前提供 sendVoice（postVoice 发语音条），后续可扩展其它 Gewe 独有接口。非 Gewe 平台插件请勿引用。]
 // [author: Mianpro官方]
-// [version: v1.0.1]
+// [version: v1.0.2]
 // [status: true]
 // [admin: false]
 // [public: true]
@@ -21,14 +21,19 @@ const TIMEOUT = 15000;
 
 /**
  * 从 gewe 桶读取 Gewe 接入配置（后台已填写，无需用户重复输入）。
- * @returns {{apiBase:string, appId:string, token:string}}
+ * @returns {Promise<{apiBase:string, appId:string, token:string}>}
  */
-function getGeweConfig() {
+async function getGeweConfig() {
   const bucket = new Bucket(BUCKET);
+  const [apiBase, appId, token] = await Promise.all([
+    bucket.get("api_base"),
+    bucket.get("app_id"),
+    bucket.get("token"),
+  ]);
   return {
-    apiBase: String(bucket.get("api_base") || "").replace(/\/+$/, ""),
-    appId: String(bucket.get("app_id") || ""),
-    token: String(bucket.get("token") || ""),
+    apiBase: String(apiBase || "").replace(/\/+$/, ""),
+    appId: String(appId || ""),
+    token: String(token || ""),
   };
 }
 
@@ -50,7 +55,7 @@ async function sendVoice({ toWxid, voiceUrl, voiceDuration }) {
   if (!Number.isFinite(duration) || duration <= 0) {
     throw new Error(`sendVoice: 无效 voiceDuration(${voiceDuration})，需毫秒正整数`);
   }
-  const cfg = getGeweConfig();
+  const cfg = await getGeweConfig();
   assertReady(cfg);
   const res = await fetch(`${cfg.apiBase}/gewe/v2/api/message/postVoice`, {
     method: "POST",
