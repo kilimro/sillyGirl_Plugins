@@ -1,8 +1,8 @@
 // [title: Gewe机器人公共模块]
 // [name: geweCore]
-// [desc: 仅供 Gewe 平台机器人使用的公共依赖模块。从 gewe 桶读取 api_base/app_id/token（后台已接入，无需用户重复填写），封装 Gewe 消息与联系人 API：发语音、发小程序、发名片、发链接、发文件、发 appmsg、获取简要信息、获取个人资料。后续可扩展其它 Gewe 独有接口。非 Gewe 平台插件请勿引用。]
+// [desc: 仅供 Gewe 平台机器人使用的公共依赖模块。从 gewe 桶读取 api_base/app_id/token（后台已接入，无需用户重复填写），封装 Gewe 消息与联系人 API：发语音、发图片、发小程序、发名片、发链接、发文件、发 appmsg、获取简要信息、搜索联系人、获取个人资料。后续可扩展其它 Gewe 独有接口。非 Gewe 平台插件请勿引用。]
 // [author: Mianpro官方]
-// [version: v1.3.0]
+// [version: v1.4.0]
 // [status: true]
 // [admin: false]
 // [public: true]
@@ -158,6 +158,16 @@ async function sendAppMsg({ toWxid, appmsg }) {
 }
 
 /**
+ * 发送图片消息。
+ * @param {{toWxid:string, imgUrl:string}} args imgUrl 为图片公网链接
+ * @returns {Promise<object>} Gewe 原始响应
+ */
+async function sendImage({ toWxid, imgUrl }) {
+  if (!toWxid || !imgUrl) throw new Error("sendImage: 缺少必填参数（toWxid/imgUrl）");
+  return request("/gewe/v2/api/message/postImage", { toWxid, imgUrl }, "Gewe 发图片失败");
+}
+
+/**
  * 获取群/好友简要信息。
  * @param {string[]} wxids 目标 ID 数组（最多 20 个）
  * @returns {Promise<object[]>} 简要信息数组
@@ -177,6 +187,23 @@ async function getBriefInfo(wxids) {
 async function getProfile() {
   const data = await request("/gewe/v2/api/personal/getProfile", {}, "Gewe 获取个人资料失败");
   return data?.data || null;
+}
+
+/**
+ * 搜索联系人（按昵称/微信号等搜索，返回结果含 bigHeadImgUrl 头像）。
+ * @param {string} keyword 搜索关键词（昵称/微信号/手机号等）
+ * @returns {Promise<object|null>} 联系人信息对象（含 nickName/bigHeadImgUrl 等），未找到返回 null
+ */
+async function searchContact(keyword) {
+  const kw = String(keyword || "").trim();
+  if (!kw) throw new Error("searchContact: 缺少搜索关键词");
+  try {
+    const data = await request("/gewe/v2/api/contacts/search", { contactsInfo: kw }, "Gewe 搜索联系人失败");
+    return data?.data || null;
+  } catch (_) {
+    // 搜索不到（用户不存在等）返回 null，由调用方决定兜底
+    return null;
+  }
 }
 
 /**
@@ -261,8 +288,10 @@ module.exports = {
   sendLink,
   sendFile,
   sendAppMsg,
+  sendImage,
   getBriefInfo,
   getProfile,
+  searchContact,
   mp3ToSilkUrl,
   probeMp3Url,
   sendVoiceFromMp3,
