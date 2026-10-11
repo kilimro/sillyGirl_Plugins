@@ -2,8 +2,8 @@
 // [name: meme]
 // [desc: 发"摸头""亲亲""抱抱"等关键词生成沙雕表情包（仅 Gewe 平台，因为只有 Gewe 能取用户头像）。支持 @某人 用对方头像（如"摸头 @小明"），需两张图的表情自动用发送者+被@者，无需头像的文字类表情（如"举牌 xxx"）直接生成。也支持"表情 关键词"搜索与"表情列表"。]
 // [author: Mianpro官方]
-// [version: v1.0.0]
-// [rule: ^(摸头|摸摸|摸|摸头杀|亲亲|亲|抱抱|抱|贴贴|看扁|踩|顶|锤|捶|拍|搓|打|吃|扔|丢|出警|嘲讽|taunt|praise|wave|hug|kiss|step_on|dont_touch|dont_press|shutup|bad_news|hold_tight|hug_leg|thump|twist|head_butt|punch|flick|police|eat|throw|一直|永远|结婚|离婚|抱大腿)(?=\s|@|$)[\s\S]*$]
+// [version: v1.0.1]
+// [rule: ^(表情|摸头|摸摸|摸|摸头杀|亲亲|亲|抱抱|抱|贴贴|看扁|踩|顶|锤|捶|拍|搓|打|吃|扔|丢|出警|嘲讽|taunt|praise|wave|hug|kiss|step_on|dont_touch|dont_press|shutup|bad_news|hold_tight|hug_leg|thump|twist|head_butt|punch|flick|police|eat|throw|一直|永远|结婚|离婚|抱大腿)[\s\S]*$]
 // [status: true]
 // [admin: false]
 // [public: true]
@@ -109,6 +109,10 @@ function matchTrigger(raw) {
 let cfg = {};
 async function main() {
   cfg = (await form.get()) || {};
+  // 仅 Gewe 平台使用（其他平台无法获取用户头像，直接放行给其他插件）
+  const platform = String((await s.getPlatform()) || "").toLowerCase();
+  if (platform !== "gewe") return s.resume();
+
   const raw = String((await s.getMsg()) || "").trim();
   if (!raw) return;
 
@@ -117,9 +121,9 @@ async function main() {
   const searchMatch = raw.match(/^表情\s+([\s\S]+)$/);
   if (searchMatch) return handleSearch(searchMatch[1].trim());
 
-  // 触发词分支
+  // 触发词分支（规则是粗筛，这里精确校验，不中则放行给其他插件）
   const hit = matchTrigger(raw);
-  if (!hit) return;
+  if (!hit) return s.resume();
 
   const toWxid = String((await s.getChatId()) || (await s.getUserId()) || "").trim();
   if (!toWxid) return;
