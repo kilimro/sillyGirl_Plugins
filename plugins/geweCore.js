@@ -2,7 +2,7 @@
 // [name: geweCore]
 // [desc: 仅供 Gewe 平台机器人使用的公共依赖模块。从 gewe 桶读取 api_base/app_id/token（后台已接入，无需用户重复填写），封装 Gewe 消息与联系人 API：发语音、发图片、发小程序、发名片、发链接、发文件、发 appmsg、获取简要信息、搜索联系人、获取个人资料。后续可扩展其它 Gewe 独有接口。非 Gewe 平台插件请勿引用。]
 // [author: Mianpro官方]
-// [version: v1.4.0]
+// [version: v1.5.0]
 // [status: true]
 // [admin: false]
 // [public: true]
@@ -158,6 +158,16 @@ async function sendAppMsg({ toWxid, appmsg }) {
 }
 
 /**
+ * 发送文字消息。
+ * @param {{toWxid:string, text:string}} args
+ * @returns {Promise<object>} Gewe 原始响应
+ */
+async function sendText({ toWxid, text }) {
+  if (!toWxid || !text) throw new Error("sendText: 缺少必填参数（toWxid/text）");
+  return request("/gewe/v2/api/message/postText", { toWxid, text }, "Gewe 发文字失败");
+}
+
+/**
  * 发送图片消息。
  * @param {{toWxid:string, imgUrl:string}} args imgUrl 为图片公网链接
  * @returns {Promise<object>} Gewe 原始响应
@@ -289,6 +299,7 @@ module.exports = {
   sendFile,
   sendAppMsg,
   sendImage,
+  sendText,
   getBriefInfo,
   getProfile,
   searchContact,
