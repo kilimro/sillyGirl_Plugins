@@ -1,8 +1,8 @@
 // [title: 群聊总结]
 // [name: groupSummary]
-// [desc: 持续记录群聊消息（仅群聊，私聊不记录），发"群聊总结"用 AI 生成当日精华总结报告。支持文字/图片两种输出（图片用 MiniMax 画一张总结封面）。仅 Gewe 平台。]
+// [desc: 持续记录群聊消息（仅群聊，私聊不记录），发"群聊总结"用 AI 生成当日精华总结报告。支持文字/图片两种输出（图片用 MiniMax 画一张总结封面）。兼容 Gewe / yyw / 飞书等全平台。]
 // [author: Mianpro官方]
-// [version: v1.0.0]
+// [version: v1.1.0]
 // [rule: *]
 // [status: true]
 // [admin: false]
@@ -11,11 +11,10 @@
 // [class: 工具]
 // [icon: https://api.920pdd.com/favicon.ico]
 // [origin: 自定义]
-// [depe: ["./geweCore.js","./openaiChatCore.js","./aiDrawCore.js"]]
+// [depe: ["./openaiChatCore.js","./aiDrawCore.js"]]
 
 "use strict";
 const { sender: s, Bucket, plugin } = require("sillygirl");
-const geweCore = require("./geweCore.js");
 const ai = require("./openaiChatCore.js");
 const draw = require("./aiDrawCore.js");
 
@@ -77,8 +76,7 @@ async function recordMessage() {
   const userId = String((await s.getUserId()) || "").trim();
   const msgId = String((await s.getMsgId()) || "").trim();
 
-  // 仅 Gewe 平台 + 仅群聊（chatId 非空且不是私聊对等 ID）
-  if (platform !== "gewe") return;
+  // 仅群聊（chatId 非空且不是私聊对等 ID），全平台通用
   if (!chatId || !userId || chatId === userId) return;
   // 跳过机器人自己发的（避免记录自己触发的总结命令等）
   const botId = String((await s.getBotId()) || "").trim();
@@ -87,9 +85,9 @@ async function recordMessage() {
   const raw = String((await s.getMsg()) || "").trim();
   if (!raw) return;
 
-  // 内容归一化：非文本消息用 CQ 码占位描述
-  let content = raw;
-  const cqMatch = raw.match(/\[CQ:(\w+)/);
+  // 内容归一化：非文本消息用 CQ 码占位描述；去掉 yyw 的 [YW.emoji] 尾巴
+  let content = raw.replace(/\[YW\.[^\]]*\]/g, "");
+  const cqMatch = content.match(/\[CQ:(\w+)/);
   if (cqMatch) {
     const type = cqMatch[1];
     const map = { image: "[图片]", record: "[语音]", video: "[视频]", file: "[文件]", at: "@" };
@@ -103,7 +101,8 @@ async function recordMessage() {
   if (/^(群聊总结|总结群聊)/.test(content)) return;
 
   const bucket = storeBucket;
-  const key = `${chatId}:${msgId}`;
+  // 键加平台前缀隔离（不同平台 chatId/msgId 可能重复）
+  const key = `${platform}:${chatId}:${msgId}`;
   const nickname = String((await s.getUserName()) || userId);
 
   // 去重：msgId 已存在则跳过
@@ -119,7 +118,7 @@ async function recordMessage() {
   // 控制单群存储量：超过 max_stored 时清掉该群最旧的
   const cfg = (await form.get()) || {};
   const maxStored = Number(cfg.max_stored) || 200;
-  const groupPrefix = `${chatId}:`;
+  const groupPrefix = `${platform}:${chatId}:`;
   const keys = (await bucket.keys()).filter((k) => k.startsWith(groupPrefix));
   if (keys.length > maxStored + 100) {
     // 按存储时间排序，删最旧的
@@ -137,9 +136,8 @@ async function recordMessage() {
 }
 
 // 读取某群最近 N 条消息（按时间正序）
-async function readRecentMessages(chatId, count) {
+async function readRecentMessages(prefix, count) {
   const bucket = storeBucket;
-  const prefix = `${chatId}:`;
   const keys = (await bucket.keys()).filter((k) => k.startsWith(prefix));
   const items = [];
   for (const k of keys) {
@@ -151,9 +149,8 @@ async function readRecentMessages(chatId, count) {
 }
 
 // 读取某群今天的消息
-async function readTodayMessages(chatId) {
+async function readTodayMessages(prefix) {
   const bucket = storeBucket;
-  const prefix = `${chatId}:`;
   const keys = (await bucket.keys()).filter((k) => k.startsWith(prefix));
   const now = new Date();
   const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
@@ -206,14 +203,14 @@ async function main() {
     return s.resume();
   }
 
-  // 仅 Gewe 平台执行总结
+  // 全平台执行总结（Gewe/yyw/飞书等）
   const platform = String((await s.getPlatform()) || "").toLowerCase();
-  if (platform !== "gewe") return s.resume();
-
   const chatId = String((await s.getChatId()) || "").trim();
   const userId = String((await s.getUserId()) || "").trim();
   // 私聊不生效
   if (!chatId || chatId === userId) return s.reply("群聊总结仅在群聊中可用");
+
+  const groupPrefix = `${platform}:${chatId}:`;
 
   // 解析参数：群聊总结 100 / 群聊总结 今天 / 群聊总结 清空
   const arg = (raw.match(/^(?:群聊总结|总结群聊)(?:\s+(.+))?$/) || [])[1] || "";
@@ -224,8 +221,7 @@ async function main() {
     const isAdmin = await s.isAdmin();
     if (!isAdmin) return s.reply("仅管理员可清空群聊记录");
     const bucket = storeBucket;
-    const prefix = `${chatId}:`;
-    const keys = (await bucket.keys()).filter((k) => k.startsWith(prefix));
+    const keys = (await bucket.keys()).filter((k) => k.startsWith(groupPrefix));
     for (const k of keys) await bucket.delete(k);
     return s.reply(`已清空本群 ${keys.length} 条记录`);
   }
@@ -233,13 +229,13 @@ async function main() {
   // 读取消息
   let items = [];
   if (argTrim === "今天") {
-    items = await readTodayMessages(chatId);
+    items = await readTodayMessages(groupPrefix);
   } else if (/^\d+$/.test(argTrim)) {
     const count = Math.min(Number(argTrim), 200);
-    items = await readRecentMessages(chatId, count);
+    items = await readRecentMessages(groupPrefix, count);
   } else {
     const count = Number(cfg.default_count) || 50;
-    items = await readRecentMessages(chatId, count);
+    items = await readRecentMessages(groupPrefix, count);
   }
 
   if (!items.length) return s.reply("本群还没有积累消息，先聊起来再总结吧");
@@ -250,30 +246,29 @@ async function main() {
     if (!summary) return s.reply("总结生成失败，请稍后再试");
 
     if (String(cfg.output_mode || "text") === "image") {
-      await sendSummaryWithImage(summary, chatId, cfg);
+      await sendSummaryWithImage(summary, cfg);
     } else {
-      await sendTextSummary(summary, chatId);
+      await sendTextSummary(summary);
     }
   } catch (error) {
     await s.reply(`群聊总结失败：${String(error?.message || error).slice(0, 120)}`);
   }
 }
 
-// 文字模式：直接发总结
-async function sendTextSummary(summary, chatId) {
-  // Gewe 发长文本用 postText
-  await geweCore.sendText({ toWxid: chatId, text: summary });
+// 文字模式：直接发总结（框架通用 reply）
+async function sendTextSummary(summary) {
+  await s.reply(summary);
 }
 
-// 图片模式：文字总结 + MiniMax 画封面图
-async function sendSummaryWithImage(summary, chatId, cfg) {
+// 图片模式：文字总结 + MiniMax 画封面图（框架通用 CQ 发图）
+async function sendSummaryWithImage(summary, cfg) {
   const drawKey = String(cfg.draw_api_key || "").trim();
   if (!drawKey) {
     // 没配画图 key 就退回纯文字
-    return sendTextSummary(summary, chatId);
+    return sendTextSummary(summary);
   }
   // 先发文字总结
-  await sendTextSummary(summary, chatId);
+  await sendTextSummary(summary);
   // 再画封面
   try {
     const title = (summary.match(/「(.+?)」/) || [])[1] || "群聊精华总结";
@@ -287,7 +282,7 @@ async function sendSummaryWithImage(summary, chatId, cfg) {
     });
     const imgUrl = Array.isArray(urls) ? urls[0] : "";
     if (imgUrl) {
-      await geweCore.sendImage({ toWxid: chatId, imgUrl });
+      await s.reply(`[CQ:image,url=${imgUrl}]`);
     }
   } catch (error) {
     // 画图失败不影响总结已发出
