@@ -2,7 +2,7 @@
 // [name: groupSummary]
 // [desc: 持续记录群聊消息（仅群聊，私聊不记录），发"群聊总结"用 AI 生成当日精华总结报告。支持文字/图片两种输出（图片用 MiniMax 画一张总结封面）。兼容 Gewe / yyw / 飞书等全平台。]
 // [author: Mianpro官方]
-// [version: v1.1.0]
+// [version: v1.1.1]
 // [rule: *]
 // [status: true]
 // [admin: false]
@@ -69,12 +69,11 @@ const form = new plugin.Form({
     .default("现代扁平插画风格，一群微信用户围坐在一起热烈讨论的群聊场景，手机屏幕上显示聊天记录和气泡，温暖明亮的色调，中央有标题「群聊精华总结」，简洁大气，适合作为聊天总结报告封面"),
 });
 
-// 消息去重与积累存储。key 结构：<chatId>:<msgId> -> {time,userId,nickname,content}
+// 消息去重与积累存储。键结构：<platform>:<chatId>:<时间戳>:<随机>（不依赖 msgId，兼容各平台）
 async function recordMessage() {
   const platform = String((await s.getPlatform()) || "").toLowerCase();
   const chatId = String((await s.getChatId()) || "").trim();
   const userId = String((await s.getUserId()) || "").trim();
-  const msgId = String((await s.getMsgId()) || "").trim();
 
   // 仅群聊（chatId 非空且不是私聊对等 ID），全平台通用
   if (!chatId || !userId || chatId === userId) return;
@@ -101,12 +100,26 @@ async function recordMessage() {
   if (/^(群聊总结|总结群聊)/.test(content)) return;
 
   const bucket = storeBucket;
-  // 键加平台前缀隔离（不同平台 chatId/msgId 可能重复）
-  const key = `${platform}:${chatId}:${msgId}`;
+  const groupPrefix = `${platform}:${chatId}:`;
+  const now = Date.now();
   const nickname = String((await s.getUserName()) || userId);
 
-  // 去重：msgId 已存在则跳过
-  if (await bucket.get(key)) return;
+  // 去重：5 秒内同群同发送者同内容视为重复（拦截中间件重复触发/同消息多次推送；
+  // 不依赖 msgId，因为部分平台 getMsgId 不可靠会返回空或恒定值）
+  const keys = (await bucket.keys()).filter((k) => k.startsWith(groupPrefix));
+  const recent = [];
+  for (const k of keys) {
+    const v = await bucket.get(k);
+    if (v && v.time) recent.push(v);
+  }
+  recent.sort((a, b) => b.time - a.time);
+  const dup = recent.slice(0, 10).find(
+    (r) => Math.abs(r.time - now) < 5000 && r.userId === userId && r.content === content,
+  );
+  if (dup) return;
+
+  // 键：平台:群ID:时间戳:随机后缀
+  const key = `${groupPrefix}${now}:${Math.random().toString(36).slice(2, 8)}`;
 
   await bucket.set(key, {
     time: Date.now(),
@@ -118,12 +131,11 @@ async function recordMessage() {
   // 控制单群存储量：超过 max_stored 时清掉该群最旧的
   const cfg = (await form.get()) || {};
   const maxStored = Number(cfg.max_stored) || 200;
-  const groupPrefix = `${platform}:${chatId}:`;
-  const keys = (await bucket.keys()).filter((k) => k.startsWith(groupPrefix));
-  if (keys.length > maxStored + 100) {
+  const allKeys = (await bucket.keys()).filter((k) => k.startsWith(groupPrefix));
+  if (allKeys.length > maxStored + 100) {
     // 按存储时间排序，删最旧的
     const withTime = [];
-    for (const k of keys) {
+    for (const k of allKeys) {
       const v = await bucket.get(k);
       if (v && v.time) withTime.push({ k, time: v.time });
     }
