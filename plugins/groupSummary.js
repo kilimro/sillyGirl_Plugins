@@ -2,7 +2,7 @@
 // [name: groupSummary]
 // [desc: 持续记录群聊消息（仅群聊，私聊不记录），发"群聊总结"用 AI 生成当日精华总结报告。支持文字/图片两种输出（图片用 MiniMax 画一张总结封面）。兼容 Gewe / yyw / 飞书等全平台。]
 // [author: Mianpro官方]
-// [version: v1.1.1]
+// [version: v1.1.2]
 // [rule: *]
 // [status: true]
 // [admin: false]
@@ -74,12 +74,23 @@ async function recordMessage() {
   const platform = String((await s.getPlatform()) || "").toLowerCase();
   const chatId = String((await s.getChatId()) || "").trim();
   const userId = String((await s.getUserId()) || "").trim();
+  const botId = String((await s.getBotId()) || "").trim();
+
+  // 调试日志：便于在后端日志定位"为什么某条没记录"
+  console.log(
+    `[groupSummary] 收到 platform=${platform} chatId=${chatId} userId=${userId} botId=${botId} msg=${String((await s.getMsg()) || "").slice(0, 30)}`,
+  );
 
   // 仅群聊（chatId 非空且不是私聊对等 ID），全平台通用
-  if (!chatId || !userId || chatId === userId) return;
+  if (!chatId || !userId || chatId === userId) {
+    console.log(`[groupSummary] 跳过：非群聊（chatId=${chatId} userId=${userId}）`);
+    return;
+  }
   // 跳过机器人自己发的（避免记录自己触发的总结命令等）
-  const botId = String((await s.getBotId()) || "").trim();
-  if (botId && userId === botId) return;
+  if (botId && userId === botId) {
+    console.log(`[groupSummary] 跳过：机器人自己发的（userId=${userId}）`);
+    return;
+  }
 
   const raw = String((await s.getMsg()) || "").trim();
   if (!raw) return;
@@ -227,6 +238,24 @@ async function main() {
   // 解析参数：群聊总结 100 / 群聊总结 今天 / 群聊总结 清空
   const arg = (raw.match(/^(?:群聊总结|总结群聊)(?:\s+(.+))?$/) || [])[1] || "";
   const argTrim = arg.trim();
+
+  if (argTrim === "状态") {
+    // 显示本群积累情况，便于排查
+    const bucket = storeBucket;
+    const keys = (await bucket.keys()).filter((k) => k.startsWith(groupPrefix));
+    const items = [];
+    for (const k of keys) {
+      const v = await bucket.get(k);
+      if (v && v.time) items.push(v);
+    }
+    items.sort((a, b) => a.time - b.time);
+    if (!items.length) return s.reply("本群暂无积累记录，群成员发的消息会由插件自动记录");
+    const last = items.slice(-5).map((m) => {
+      const t = new Date(m.time);
+      return `${String(t.getHours()).padStart(2, "0")}:${String(t.getMinutes()).padStart(2, "0")} ${m.nickname}：${m.content}`;
+    }).join("\n");
+    return s.reply(`本群已积累 ${items.length} 条（最近 5 条）：\n${last}`);
+  }
 
   if (argTrim === "清空") {
     // 仅管理员可清空
