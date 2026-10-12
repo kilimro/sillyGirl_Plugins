@@ -2,7 +2,7 @@
 // [name: groupSummary]
 // [desc: 持续记录群聊消息（仅群聊，私聊不记录），发"群聊总结"用 AI 生成当日精华总结报告。支持文字/图片两种输出（图片用 MiniMax 画一张总结封面）。兼容 Gewe / yyw / 飞书等全平台。]
 // [author: Mianpro官方]
-// [version: v1.1.2]
+// [version: v1.1.3]
 // [rule: *]
 // [status: true]
 // [admin: false]
@@ -76,21 +76,10 @@ async function recordMessage() {
   const userId = String((await s.getUserId()) || "").trim();
   const botId = String((await s.getBotId()) || "").trim();
 
-  // 调试日志：便于在后端日志定位"为什么某条没记录"
-  console.log(
-    `[groupSummary] 收到 platform=${platform} chatId=${chatId} userId=${userId} botId=${botId} msg=${String((await s.getMsg()) || "").slice(0, 30)}`,
-  );
-
   // 仅群聊（chatId 非空且不是私聊对等 ID），全平台通用
-  if (!chatId || !userId || chatId === userId) {
-    console.log(`[groupSummary] 跳过：非群聊（chatId=${chatId} userId=${userId}）`);
-    return;
-  }
+  if (!chatId || !userId || chatId === userId) return;
   // 跳过机器人自己发的（避免记录自己触发的总结命令等）
-  if (botId && userId === botId) {
-    console.log(`[groupSummary] 跳过：机器人自己发的（userId=${userId}）`);
-    return;
-  }
+  if (botId && userId === botId) return;
 
   const raw = String((await s.getMsg()) || "").trim();
   if (!raw) return;
