@@ -1,8 +1,8 @@
 // [title: 摸鱼日报]
 // [name: moyu]
-// [desc: 发"摸鱼"打卡，自动累计摸鱼天数（一人一天一次），调用绘图接口生成摸鱼日报图片回复。Gewe 平台用真实头像，其他平台用默认头像。]
+// [desc: 发"摸鱼"打卡，每天可摸鱼次数可配置（默认3次），每次成功累计摸鱼天数，调用绘图接口生成摸鱼日报图片回复。Gewe 平台用真实头像，其他平台用默认头像。]
 // [author: Mianpro官方]
-// [version: v1.0.0]
+// [version: v1.1.0]
 // [rule: ^摸鱼$]
 // [status: true]
 // [admin: false]
@@ -31,9 +31,15 @@ const form = new plugin.Form({
     .description("拿不到头像时使用的默认头像（公网图片 URL，留空则不带头像）")
     .default(""),
   repeat_tip: plugin.Form.string()
-    .title("重复打卡提示")
-    .description("当天已打卡时回复的话")
+    .title("次数用完提示")
+    .description("当天摸鱼次数用完时回复的话")
     .default("今天已经摸过鱼啦，老板都要被你摸秃噜皮了"),
+  daily_limit: plugin.Form.number()
+    .title("每天可摸鱼次数")
+    .description("一天最多可摸鱼几次，超过则提示次数用完")
+    .min(1)
+    .max(99)
+    .default(3),
 });
 
 // Gewe 平台：从简要信息接口拿真实昵称和头像
@@ -78,14 +84,17 @@ async function main() {
   ).padStart(2, "0")}`;
   const key = `${platform}:${userId}`;
 
-  // ---- 一天一次去重 ----
+  // ---- 每天次数限制（存 日期 + 当日已摸次数）----
+  const dailyLimit = Number(cfg.daily_limit) || 3;
   const checkBucket = new Bucket(CHECK_BUCKET);
-  const lastDate = await checkBucket.get(key);
-  if (lastDate === dateStr) {
+  const record = await checkBucket.get(key);
+  const isNewDay = !record || record.date !== dateStr;
+  const todayCount = isNewDay ? 0 : Number(record.count) || 0;
+  if (todayCount >= dailyLimit) {
     return s.reply(String(cfg.repeat_tip || "今天已经摸过鱼啦，老板都要被你摸秃噜皮了"));
   }
 
-  // ---- 摸鱼天数 +1 ----
+  // ---- 摸鱼天数 +1（每次成功摸鱼累计一次）----
   const daysBucket = new Bucket(DAYS_BUCKET);
   const curDays = Number(await daysBucket.get(key)) || 0;
   const newDays = curDays + 1;
@@ -129,7 +138,7 @@ async function main() {
 
   // ---- 接口成功才记录（失败可重试，不消耗次数）----
   await daysBucket.set(key, newDays);
-  await checkBucket.set(key, dateStr);
+  await checkBucket.set(key, { date: dateStr, count: todayCount + 1 });
 
   // 全平台通用 CQ 发图
   await s.reply(`[CQ:image,url=${data.url}]`);
