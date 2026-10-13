@@ -1,8 +1,8 @@
 // [title: Gewe机器人公共模块]
 // [name: geweCore]
-// [desc: 仅供 Gewe 平台机器人使用的公共依赖模块。从 gewe 桶读取 api_base/app_id/token（后台已接入，无需用户重复填写），封装 Gewe 消息与联系人 API：发语音、发图片、发小程序、发名片、发链接、发文件、发 appmsg、获取简要信息、搜索联系人、获取个人资料。后续可扩展其它 Gewe 独有接口。非 Gewe 平台插件请勿引用。]
+// [desc: 仅供 Gewe 平台机器人使用的公共依赖模块。从 gewe 桶读取 api_base/app_id/token（后台已接入，无需用户重复填写），封装 Gewe 消息与联系人 API：发语音、发图片、发小程序、发名片、发链接、发文件、发 appmsg、获取简要信息、搜索联系人、获取个人资料；并支持解析适配器输出的扩展 CQ 码，按需调用 downloadCdn/downloadVoice 下载图片/视频/文件/语音。后续可扩展其它 Gewe 独有接口。非 Gewe 平台插件请勿引用。]
 // [author: Mianpro官方]
-// [version: v1.5.0]
+// [version: v1.6.0]
 // [status: true]
 // [admin: false]
 // [public: true]
@@ -289,6 +289,118 @@ async function sendVoiceFromMp3(toWxid, mp3Url, opts = {}) {
   return sendVoice({ toWxid, voiceUrl: silkUrl, voiceDuration: duration });
 }
 
+// ===================== 媒体下载（适配器已输出扩展 CQ 码） =====================
+
+/**
+ * 解析 Gewe 图片扩展 CQ 码。
+ * 格式：[CQ:image,file=<fileId>,aeskey=<aesKey>,size=<totalSize>,suffix=<suffix>]
+ * @param {string} text 消息文本
+ * @returns {{fileId:string, aesKey:string, size:string, suffix:string}|null} 解析失败返回 null
+ */
+function parseImageCq(text) {
+  const m = String(text || "").match(
+    /\[CQ:image,file=([^,\]]+)(?:,aeskey=([^,\]]*))?(?:,size=([^,\]]*))?(?:,suffix=([^,\]]*))?\]/,
+  );
+  if (!m) return null;
+  return {
+    fileId: m[1] || "",
+    aesKey: m[2] || "",
+    size: m[3] || "",
+    suffix: m[4] || "",
+  };
+}
+
+/**
+ * 解析 Gewe 语音扩展 CQ 码。
+ * 格式：[CQ:record,file=<voiceUrl>,msgId=<msgId>,xml=<base64完整XML>]
+ * @param {string} text 消息文本
+ * @returns {{voiceUrl:string, msgId:string, xml:string}|null} 解析失败返回 null
+ */
+function parseRecordCq(text) {
+  const m = String(text || "").match(
+    /\[CQ:record,file=([^,\]]+)(?:,msgId=([^,\]]*))?(?:,xml=([^,\]]*))?\]/,
+  );
+  if (!m) return null;
+  return {
+    voiceUrl: m[1] || "",
+    msgId: m[2] || "",
+    xml: m[3] || "",
+  };
+}
+
+/**
+ * 通用 CQ 码解析：识别 Gewe 扩展媒体 CQ 码类型。
+ * @param {string} text 消息文本
+ * @returns {{type:'image'|'record'|null, params:object}} 非媒体消息 type 为 null
+ */
+function parseCq(text) {
+  const img = parseImageCq(text);
+  if (img) return { type: "image", params: img };
+  const rec = parseRecordCq(text);
+  if (rec) return { type: "record", params: rec };
+  return { type: null, params: {} };
+}
+
+/**
+ * 下载 CDN 文件（图片/视频/文件）。按需调用，不要在每条媒体消息时自动下载。
+ * @param {{fileId:string, aesKey?:string, size?:string, suffix?:string, type?:number}} args
+ *   type：1=高清图片 2=常规图片(默认) 3=缩略图 4=视频 5=文件
+ * @returns {Promise<string>} 公网 fileUrl（7 天有效）
+ */
+async function downloadCdn({ fileId, aesKey = "", size = "", suffix = "", type = 2 }) {
+  if (!fileId) throw new Error("downloadCdn: 缺少 fileId");
+  const data = await request(
+    "/gewe/v2/api/message/downloadCdn",
+    { aesKey, fileId, type, totalSize: size || "0", suffix },
+    "Gewe 下载文件失败",
+  );
+  const url = data?.data?.fileUrl;
+  if (!url) throw new Error("Gewe 下载文件失败：返回缺少 fileUrl");
+  return url;
+}
+
+/**
+ * 下载语音（silk 格式）。按需调用，不要在每条语音消息时自动下载。
+ * @param {{msgId:string|number, xml:string}} args xml 为 base64 解码后的完整消息 XML
+ * @returns {Promise<string>} 公网 silk fileUrl（7 天有效）
+ */
+async function downloadVoice({ msgId, xml }) {
+  const mid = Number(msgId);
+  if (!Number.isFinite(mid) || mid <= 0) throw new Error("downloadVoice: 缺少有效 msgId");
+  if (!xml) throw new Error("downloadVoice: 缺少 xml");
+  const data = await request(
+    "/gewe/v2/api/message/downloadVoice",
+    { msgId: mid, xml: String(xml) },
+    "Gewe 下载语音失败",
+  );
+  const url = data?.data?.fileUrl;
+  if (!url) throw new Error("Gewe 下载语音失败：返回缺少 fileUrl");
+  return url;
+}
+
+/**
+ * 一条龙：从图片 CQ 码直接下载图片。
+ * @param {string} text 含 [CQ:image,...] 的消息文本
+ * @param {number} [type] 1=高清 2=常规(默认) 3=缩略图 4=视频 5=文件
+ * @returns {Promise<string>} 公网 fileUrl
+ */
+async function downloadImageFromCq(text, type = 2) {
+  const parsed = parseImageCq(text);
+  if (!parsed) throw new Error("downloadImageFromCq: 消息里没有 Gewe 图片 CQ 码");
+  return downloadCdn({ ...parsed, type });
+}
+
+/**
+ * 一条龙：从语音 CQ 码直接下载语音（silk）。
+ * @param {string} text 含 [CQ:record,...] 的消息文本
+ * @returns {Promise<string>} 公网 silk fileUrl
+ */
+async function downloadVoiceFromCq(text) {
+  const parsed = parseRecordCq(text);
+  if (!parsed) throw new Error("downloadVoiceFromCq: 消息里没有 Gewe 语音 CQ 码");
+  return downloadVoice({ msgId: parsed.msgId, xml: Buffer.from(parsed.xml, "base64").toString("utf-8") });
+}
+
 module.exports = {
   getGeweConfig,
   request,
@@ -306,4 +418,11 @@ module.exports = {
   mp3ToSilkUrl,
   probeMp3Url,
   sendVoiceFromMp3,
+  parseCq,
+  parseImageCq,
+  parseRecordCq,
+  downloadCdn,
+  downloadVoice,
+  downloadImageFromCq,
+  downloadVoiceFromCq,
 };
