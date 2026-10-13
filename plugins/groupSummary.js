@@ -1,9 +1,10 @@
 // [title: 群聊总结]
 // [name: groupSummary]
-// [desc: 持续记录群聊消息（仅群聊，私聊不记录），发"群聊总结"用 AI 生成当日精华总结报告。支持文字/图片两种输出（图片用 MiniMax 画一张总结封面）。兼容 Gewe / yyw / 飞书等全平台。]
+// [desc: 持续记录群聊消息（仅群聊，私聊不记录），发"群聊总结"用 AI 生成当日精华总结报告。支持文字/图片两种输出（图片用 MiniMax 画一张总结封面）。每天16:00定时把当日总结推送给 Admin 面板「定时任务」里配置的发送人。兼容 Gewe / yyw / 飞书等全平台。]
 // [author: Mianpro官方]
-// [version: v1.1.3]
+// [version: v1.2.0]
 // [rule: *]
+// [cron: 0 16 * * *]
 // [status: true]
 // [admin: false]
 // [public: true]
@@ -67,6 +68,15 @@ const form = new plugin.Form({
     .title("封面提示词")
     .description("生成总结封面图的提示词，{topic} 会被替换为总结标题")
     .default("现代扁平插画风格，一群微信用户围坐在一起热烈讨论的群聊场景，手机屏幕上显示聊天记录和气泡，温暖明亮的色调，中央有标题「群聊精华总结」，简洁大气，适合作为聊天总结报告封面"),
+  // ---- 定时总结（每天16:00，发送目标在 Admin 面板「定时任务」里配置）----
+  schedule_groups: plugin.Form.string()
+    .title("定时总结群列表")
+    .description("逗号分隔 平台:群ID，如 gewe:18439455482@chatroom,yyw:xxxx。留空=自动总结当前发送平台下今天有消息的所有群")
+    .default(""),
+  schedule_title: plugin.Form.string()
+    .title("定时发送前缀")
+    .description("定时推送时加在总结前的开头语，留空=直接发总结")
+    .default(""),
 });
 
 // 消息去重与积累存储。键结构：<platform>:<chatId>:<时间戳>:<随机>（不依赖 msgId，兼容各平台）
@@ -209,6 +219,12 @@ async function main() {
   cfg = (await form.get()) || {};
   const raw = String((await s.getMsg()) || "").trim();
 
+  // 定时任务入口：cron 触发时没有消息内容，走每日定时总结
+  if (!raw) {
+    await runScheduled(cfg);
+    return;
+  }
+
   const isCmd = /^(群聊总结|总结群聊)/.test(raw);
   if (!isCmd) {
     await recordMessage();
@@ -282,6 +298,67 @@ async function main() {
     }
   } catch (error) {
     await s.reply(`群聊总结失败：${String(error?.message || error).slice(0, 120)}`);
+  }
+}
+
+// 定时总结：每天16:00由框架调度触发，把当天群聊总结推送给 Admin 面板「定时任务」配置的发送人
+async function runScheduled(cfg) {
+  const platform = String((await s.getPlatform()) || "").toLowerCase();
+  const targetChat = String((await s.getChatId()) || "").trim();
+  // 未在 Admin 面板配置发送人时 chatId 为空，静默跳过
+  if (!targetChat) {
+    console.log("[groupSummary] 定时任务未配置发送人，跳过本次推送");
+    return;
+  }
+
+  // 目标群列表：优先 schedule_groups 配置，留空则自动找发送平台下今天有消息的群
+  const groups = [];
+  const cfgGroups = String(cfg.schedule_groups || "").trim();
+  if (cfgGroups) {
+    for (const item of cfgGroups.split(/[,，]/)) {
+      const idx = item.indexOf(":");
+      if (idx < 0) continue;
+      const p = item.slice(0, idx).trim().toLowerCase();
+      const cid = item.slice(idx + 1).trim();
+      if (p === platform && cid) groups.push(cid);
+    }
+  } else {
+    const keys = await storeBucket.keys();
+    const seen = new Set();
+    for (const k of keys) {
+      if (!k.startsWith(platform + ":")) continue;
+      const cid = k.slice(platform.length + 1).split(":")[0];
+      if (!cid || seen.has(cid)) continue;
+      seen.add(cid);
+      const prefix = `${platform}:${cid}:`;
+      const items = await readTodayMessages(prefix);
+      if (items.length) groups.push(cid);
+    }
+  }
+
+  if (!groups.length) {
+    console.log("[groupSummary] 定时总结：没有可总结的群，跳过");
+    return;
+  }
+
+  const title = String(cfg.schedule_title || "").trim();
+  for (const chatId of groups) {
+    try {
+      const prefix = `${platform}:${chatId}:`;
+      const items = await readTodayMessages(prefix);
+      if (!items.length) continue;
+      const summary = await summarize(items, cfg);
+      if (!summary) continue;
+      const payload = title ? `${title}\n${summary}` : summary;
+      if (String(cfg.output_mode || "text") === "image") {
+        await sendSummaryWithImage(payload, cfg);
+      } else {
+        await sendTextSummary(payload);
+      }
+    } catch (error) {
+      // 单个群失败不影响其他群
+      console.log(`[groupSummary] 定时总结群 ${chatId} 失败: ${error?.message || error}`);
+    }
   }
 }
 
