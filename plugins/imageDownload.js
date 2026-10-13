@@ -2,7 +2,7 @@
 // [name: imageDownload]
 // [desc: 仅 Gewe 平台可用。发"下载图片/下载原图/看看这张图"后提示在一分钟内发送图片，收到图片即调 downloadCdn 下载并把图片 URL/图片发回。]
 // [author: Mianpro官方]
-// [version: v1.1.0]
+// [version: v1.1.1]
 // [rule: ^(下载图片|下载原图|看看这张图|图片下载)$]
 // [status: true]
 // [admin: false]
@@ -56,7 +56,7 @@ async function main() {
     user_id: await s.getUserId(),
     chat_id: await s.getChatId(),
     handle: async (s2) => {
-      const cq = String(s2.getMsg() || "").trim();
+      const cq = String((await s2.getMsg()) || "").trim();
       const parsed = gewe.parseImageCq(cq);
       if (!parsed || !parsed.fileId) {
         await s2.reply("没识别到图片，请重新发送下载图片");

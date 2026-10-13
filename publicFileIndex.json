@@ -446,7 +446,7 @@
     "name": "imageDownload",
     "title": "图片下载",
     "author": "Mianpro官方",
-    "version": "v1.1.0",
+    "version": "v1.1.1",
     "desc": "仅 Gewe 平台可用。发\"下载图片/下载原图/看看这张图\"后提示在一分钟内发送图片，收到图片即调 downloadCdn 下载并把图片 URL/图片发回。",
     "icon": "https://api.920pdd.com/favicon.ico",
     "class": "工具",
