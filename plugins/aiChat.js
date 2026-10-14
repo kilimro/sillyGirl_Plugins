@@ -1,8 +1,8 @@
 // [title: AI 聊天助手]
 // [name: aiChat]
-// [desc: 接入任意 OpenAI 兼容接口的 AI 助手。消息必须以 ai/AI/机器人/小助手 开头才会触发，其他命令走原插件不抢。要改触发词请编辑下方 [rule] 那一行的正则。支持 BaseURL/Key/模型/长系统提示词（变量插值）/上下文轮数/工具调用。]
+// [desc: 接入任意 OpenAI 兼容接口的 AI 助手，内置 DeepSeek/智谱GLM/Kimi/MiniMax/通义Qwen 提供商预设。消息必须以 ai/AI/机器人/小助手 开头才会触发，其他命令走原插件不抢。支持 BaseURL/Key/模型/长系统提示词（变量插值）/上下文轮数/工具调用/思考模式控制（thinking 默认 off 关闭，语音回复场景无需思考）。]
 // [author: Mianpro官方]
-// [version: v2.4.0]
+// [version: v3.0.0]
 // [rule: ^(ai|起床了绵绵|Ai|机器人|小助手)[，,、:：\s]*[\s\S]*$]
 // [status: true]
 // [admin: false]
@@ -27,13 +27,31 @@ const MAX_TOOL_ROUNDS = 4;
 const PREFIX_RE = /^\s*(?:ai|起床了绵绵|Ai|机器人|小助手)[，,、:：\s]*/;
 
 const form = new plugin.Form({
+  provider: plugin.Form.string()
+    .title("大模型提供商")
+    .description(
+      "openai=OpenAI；deepseek=DeepSeek；glm=智谱GLM；kimi=Kimi；minimax=MiniMax；qwen=通义Qwen；custom=自定义。选好后下面 BaseURL/模型会自动带出推荐值（仍可手改）",
+    )
+    .default("openai"),
   base_url: plugin.Form.string()
     .title("OpenAI 兼容 BaseURL")
-    .description("例如 https://api.openai.com/v1，或第三方中转/自建地址；不需要写 /chat/completions 后缀")
-    .default(ai.DEFAULT_BASE_URL)
-    .required(),
+    .description("例如 https://api.openai.com/v1，或第三方中转/自建地址；留空则按提供商自动填充；不需要写 /chat/completions 后缀")
+    .default(""),
   api_key: plugin.Form.string().title("API Key").default("").required(),
-  model: plugin.Form.string().title("模型名").default(ai.DEFAULT_MODEL).required(),
+  model: plugin.Form.string()
+    .title("模型名")
+    .description("如 gpt-4o-mini / deepseek-chat / glm-4.5 / moonshot-v1-8k / qwen-plus 等；留空则按提供商取推荐模型")
+    .default(""),
+  thinking: plugin.Form.string()
+    .title("思考模式")
+    .description(
+      "off=关闭思考（默认，回复最快，语音回复场景请保持 off）；low/high/max=开启思考并控制力度。注意：部分思考模型（deepseek-reasoner、GLM-5.3 等）无法在请求侧关闭，off 时也会自动隐藏思考内容、只回最终答案",
+    )
+    .default("off"),
+  show_thinking: plugin.Form.boolean()
+    .title("展示思考过程")
+    .description("开启后把模型思考过程附在回复前（仅文字回复模式生效；语音回复模式始终不携带）。默认关闭")
+    .default(false),
   system_prompt: plugin.Form.string()
     .title("系统提示词（人设）")
     .description(
@@ -257,11 +275,16 @@ async function runTool(call) {
   }
 }
 
+// 解析后的对话配置（provider 预设 + 手动覆盖），供 chatWithTools 使用
+let resolvedChat = {};
+
 async function chatWithTools(messages) {
   const baseOptions = {
-    baseUrl: cfg.base_url,
-    apiKey: cfg.api_key,
-    model: cfg.model,
+    baseUrl: resolvedChat.baseUrl,
+    apiKey: resolvedChat.apiKey,
+    model: resolvedChat.model,
+    provider: resolvedChat.provider,
+    thinking: resolvedChat.thinking,
     temperature: cfg.temperature,
     maxTokens: cfg.max_tokens,
     timeout: cfg.timeout,
@@ -277,7 +300,13 @@ async function chatWithTools(messages) {
   let current = messages.slice();
   let last = await send(current);
   for (let round = 0; round < MAX_TOOL_ROUNDS && last.toolCalls?.length; round += 1) {
-    current.push({ role: "assistant", content: last.content || "", tool_calls: last.toolCalls });
+    // 思考模型（DeepSeek 等）要求 assistant 消息必须完整回传 reasoning_content，否则 400
+    current.push({
+      role: "assistant",
+      content: last.content || "",
+      tool_calls: last.toolCalls,
+      reasoning_content: last.reasoningContent || undefined,
+    });
     for (const call of last.toolCalls) {
       const result = await runTool(call);
       current.push({
@@ -298,7 +327,8 @@ async function handleStatus(key) {
   return s.reply(
     [
       "===== AI 助手状态 =====",
-      `模型：${cfg.model}`,
+      `提供商：${String(cfg.provider || "openai")}（模型：${resolvedChat.model || cfg.model}）`,
+      `思考模式：${String(cfg.thinking || "off")}（${cfg.show_thinking ? "展示思考" : "隐藏思考"}）`,
       `上下文轮数：${cfg.context_rounds}（当前已存 ${pairs} 轮）`,
       `内置工具：${cfg.enable_tools ? "开启（" + TOOLS.map((t) => t.function.name).join("、") + "）" : "关闭"}`,
       "发送「ai清空」可清除你的记忆",
@@ -315,6 +345,15 @@ let cfg = {};
 
 async function main() {
   cfg = (await form.get()) || {};
+  // 模型配置解析：provider 预设兜底 + 手动覆盖
+  const providerKey = String(cfg.provider || "openai").toLowerCase().trim();
+  resolvedChat = {
+    baseUrl: String(cfg.base_url || "").trim() || ai.getProviderBaseUrl(providerKey),
+    apiKey: String(cfg.api_key || "").trim(),
+    model: String(cfg.model || "").trim() || ai.getProviderDefaultModel(providerKey),
+    provider: providerKey,
+    thinking: String(cfg.thinking || "off").toLowerCase(),
+  };
   const rawContent = String((await s.getMsg()) || "").trim();
   if (!rawContent) return;
 
@@ -345,7 +384,7 @@ async function main() {
     }
   }
 
-  if (!String(cfg.api_key || "").trim()) return;
+  if (!resolvedChat.apiKey) return;
   if (privateChat && !cfg.enable_private) return;
   if (!privateChat && !cfg.enable_group) return;
   if (!promptText) return; // 只发了个"ai"，等用户补内容
@@ -375,6 +414,12 @@ async function main() {
     const result = await chatWithTools(messages);
     const replyText = clampReply(result.content);
     if (!replyText) return;
+    // 展示思考过程（仅文字回复模式；语音回复读正式回答，不带思考）
+    let finalReply = replyText;
+    const thinkText = String(result.reasoningContent || "").trim();
+    if (cfg.show_thinking && thinkText) {
+      finalReply = `🤔 思考：${clampReply(thinkText).slice(0, 800)}\n\n${replyText}`;
+    }
     history.push({ role: "user", content: promptText });
     history.push({ role: "assistant", content: replyText });
     await saveHistory(key, history);
@@ -420,15 +465,15 @@ async function main() {
         await s.reply(`语音合成失败，文字回复：${replyText}`);
       }
     } else {
-      await s.reply(replyText);
+      await s.reply(finalReply);
     }
     // 同步提取记忆（await 确保存上）
     if (cfg.enable_memory) {
       try {
         const extracted = await mem.extractFromMessage(promptText, {
-          baseUrl: cfg.base_url,
-          apiKey: cfg.api_key,
-          model: cfg.model,
+          baseUrl: resolvedChat.baseUrl,
+          apiKey: resolvedChat.apiKey,
+          model: resolvedChat.model,
           timeout: 15000,
         });
         if (extracted) {
