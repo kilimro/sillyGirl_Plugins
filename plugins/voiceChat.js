@@ -1,8 +1,8 @@
 // [title: 语音对话聊天]
 // [name: voiceChat]
-// [desc: 仅 Gewe 平台可用。收到语音消息自动转文字并接入 AI 对话（复刻 aiChat 核心逻辑）。语音转文字（STT）与 AI 对话各自独立配置模型，支持系统提示词变量、上下文记忆、同人冷却与群白名单。]
+// [desc: 仅 Gewe 平台可用。收到语音消息自动转文字并接入 AI 对话（复刻 aiChat 核心逻辑）。语音转文字（STT）与 AI 对话各自独立配置模型，支持系统提示词变量、上下文记忆、同人冷却、群白名单与语音回复（reply_mode=voice）。]
 // [author: Mianpro官方]
-// [version: v1.0.0]
+// [version: v1.1.0]
 // [rule: raw ^\[CQ:record[^\]]*\]$]
 // [status: true]
 // [admin: false]
@@ -11,13 +11,14 @@
 // [class: 大模型]
 // [icon: https://ecmb.bdimg.com/tam-ogel/-341441530_114552854_88_88.png]
 // [origin: 自定义]
-// [depe: ["./geweCore.js","./whisperCore.js","./openaiChatCore.js"]]
+// [depe: ["./geweCore.js","./whisperCore.js","./openaiChatCore.js","./ttsCore.js"]]
 
 "use strict";
 const { sender: s, Bucket, plugin } = require("sillygirl");
 const geweCore = require("./geweCore.js");
 const whisper = require("./whisperCore.js");
 const ai = require("./openaiChatCore.js");
+const tts = require("./ttsCore.js");
 
 const HISTORY_BUCKET = "voice_chat_history";
 const COOLDOWN_BUCKET = "voice_chat_cooldown";
@@ -83,6 +84,47 @@ const form = new plugin.Form({
     .min(0)
     .max(3600)
     .default(10),
+  // ===== 语音回复（TTS）=====
+  reply_mode: plugin.Form.string()
+    .title("回复模式")
+    .description("text=文字回复（默认）；voice=语音回复（需要配置下面的 TTS）")
+    .default("text"),
+  tts_provider: plugin.Form.string()
+    .title("TTS 提供商")
+    .description("minimax=MiniMax t2a_v2；custom=自定义 HTTP TTS 接口")
+    .default("minimax"),
+  tts_api_key: plugin.Form.string().title("TTS API Key（MiniMax 用）").default(""),
+  tts_model: plugin.Form.string().title("TTS 模型（MiniMax 用）").default("speech-2.8-hd"),
+  tts_voice_id: plugin.Form.string().title("TTS 音色 ID（MiniMax 用）").default("female-yujie"),
+  tts_custom_base_url: plugin.Form.string()
+    .title("自定义 TTS BaseURL（custom 模式用）")
+    .description("你的 TTS 接口地址，GET 或 POST 返回音频 URL")
+    .default(""),
+  tts_custom_method: plugin.Form.string()
+    .title("自定义 TTS 请求方式")
+    .description("GET 或 POST，默认 POST")
+    .default("POST"),
+  tts_custom_text_param: plugin.Form.string()
+    .title("文本参数名")
+    .description("GET query / POST body 里文本字段的 key，默认 text")
+    .default("text"),
+  tts_custom_audio_path: plugin.Form.string()
+    .title("自定义 TTS 音频 URL 字段路径")
+    .description("返回 JSON 里音频 URL 的路径，如 data.audio 或 url")
+    .default("url"),
+  // 以下仅 Gewe 平台发语音条时需要：mp3 → silk 转换 API
+  convert_api: plugin.Form.string()
+    .title("mp3转silk API 地址（仅Gewe）")
+    .description("GET 请求，把 mp3 公网 URL 转成 silk 公网 URL。留空则语音回复回退文字")
+    .default(""),
+  convert_url_param: plugin.Form.string()
+    .title("API 请求参数名")
+    .description("传给 API 的 mp3 URL 参数名")
+    .default("url"),
+  convert_field: plugin.Form.string()
+    .title("返回值取值字段")
+    .description("从 API 返回 JSON 里取 silk 公网 URL 的字段")
+    .default("silk_url"),
 });
 
 const historyStore = new Bucket(HISTORY_BUCKET);
@@ -354,6 +396,45 @@ async function main() {
     history.push({ role: "user", content: text });
     history.push({ role: "assistant", content: replyText });
     await saveHistory(key, history);
+    // 语音回复模式（复刻 aiChat：TTS 合成 -> Gewe mp3转silk 发语音条，失败回退文字）
+    if (cfg.reply_mode === "voice") {
+      try {
+        const ttsOpts =
+          cfg.tts_provider === "custom"
+            ? {
+                provider: "custom",
+                custom: {
+                  baseUrl: cfg.tts_custom_base_url,
+                  method: cfg.tts_custom_method,
+                  textParam: cfg.tts_custom_text_param,
+                  audioUrlPath: cfg.tts_custom_audio_path || "url",
+                  apiKey: cfg.tts_api_key,
+                },
+              }
+            : {
+                provider: "minimax",
+                apiKey: cfg.tts_api_key,
+                model: cfg.tts_model,
+                voiceId: cfg.tts_voice_id,
+              };
+        const audioUrl = await tts.synthesize(replyText, ttsOpts);
+        const toWxid = String((await s.getChatId()) || (await s.getUserId()) || "").trim();
+        if (!toWxid) throw new Error("无法确定接收人(toWxid)");
+        if (!String(cfg.convert_api || "").trim()) {
+          throw new Error("语音回复需配置 mp3转silk 的 API 地址（convert_api）");
+        }
+        await geweCore.sendVoiceFromMp3(toWxid, audioUrl, {
+          api: cfg.convert_api,
+          urlParam: cfg.convert_url_param,
+          field: cfg.convert_field,
+        });
+        return;
+      } catch (ttsErr) {
+        console.log(`[voiceChat] 语音回复失败，回退文字: ${ttsErr?.message || ttsErr}`);
+        await s.reply(`语音回复失败，文字回复：${replyText}`);
+        return;
+      }
+    }
     await s.reply(replyText);
   } catch (error) {
     await s.reply(`AI 暂时摸鱼了：${String(error?.message || error).slice(0, 200)}`);
