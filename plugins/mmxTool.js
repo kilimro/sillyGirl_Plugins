@@ -2,7 +2,7 @@
 // [name: mmxTool]
 // [desc: 调用本机 MiniMax CLI（mmx）的多模态能力：画图、生成视频、语音合成、网络搜索、看图识别、配额查询、文本对话。使用前需在本机执行 npm install -g mmx-cli 并 mmx auth login 登录（订阅 Key 保存在本地 ~/.mmx/config.json，不会出现在本插件或代码中）。命令统一以 mmx 开头，不与现有插件冲突。]
 // [author: Mianpro官方]
-// [version: v1.1.0]
+// [version: v1.1.1]
 // [rule: ^(mmx|MMX|Mmx)[\s，,、:：]*(.*)$]
 // [status: true]
 // [admin: true]
@@ -57,6 +57,10 @@ const form = new plugin.Form({
     .title("图片公网前缀")
     .description("把图片目录反代/静态托管后的前缀，如 https://img.xxx.com/mmx/；发图时以 前缀+文件名 发出。留空则只回复本地路径")
     .default(""),
+  vision_prompt: plugin.Form.string()
+    .title("识图提示词（mmx看看）")
+    .description("发送给视觉模型的指令，控制识别输出的详细程度和语言；默认中文详细描述。留空则用 CLI 默认英文 Describe the image.")
+    .default("请用中文详细描述这张图片的内容，包括主体、场景、人物或物体、画面中的文字等，越详细越好。"),
   voice: plugin.Form.string()
     .title("语音音色（可选）")
     .description("留空用 CLI 默认音色；可先跑 mmx speech voices 查看列表")
@@ -436,6 +440,8 @@ async function handleVision() {
       }
       try {
         const args = ["vision", "describe", "--image", imgUrl, "--output", "json", "--non-interactive"];
+        const vPrompt = String(cfg.vision_prompt || "").trim();
+        if (vPrompt) args.push("--prompt", vPrompt);
         const out = await runMmx(args, IMAGE_TIMEOUT);
         const data = parseJson(out);
         const desc = firstText(data, ["description", "content", "text", "result", "answer"]);
