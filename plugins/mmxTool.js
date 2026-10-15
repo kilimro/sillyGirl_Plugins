@@ -2,7 +2,7 @@
 // [name: mmxTool]
 // [desc: 调用本机 MiniMax CLI（mmx）的多模态能力：画图、生成视频、语音合成、网络搜索、看图识别、配额查询、文本对话。使用前需在本机执行 npm install -g mmx-cli 并 mmx auth login 登录（订阅 Key 保存在本地 ~/.mmx/config.json，不会出现在本插件或代码中）。命令统一以 mmx 开头，不与现有插件冲突。]
 // [author: Mianpro官方]
-// [version: v1.0.3]
+// [version: v1.0.4]
 // [rule: ^(mmx|MMX|Mmx)[\s，,、:：]*(.*)$]
 // [status: true]
 // [admin: false]
@@ -101,6 +101,13 @@ const MENU = [
 
 let cfg = {};
 
+// 配置值容错：用户可能误填成 "mmx_path: xxx" / "mmx_config_dir: xxx" 带键名前缀，自动清洗
+function cleanCfgValue(value, key) {
+  return String(value || "")
+    .replace(new RegExp(`^${key}\\s*[:：]\\s*`, "i"), "")
+    .trim();
+}
+
 // Windows 下 .cmd 参数：剔除 cmd 元字符（防注入/防解析错乱），再双引号包裹
 function winCmdArg(value) {
   const cleaned = String(value)
@@ -113,15 +120,16 @@ function winCmdArg(value) {
 // 执行 mmx 命令（macOS/Linux 直接 spawn；Windows 必须经 cmd.exe /c 拉起 .cmd，参数已清洗+引号包裹）
 function runMmx(args, timeoutMs) {
   return new Promise((resolve, reject) => {
-    const bin = cfg.mmx_path
-      ? String(cfg.mmx_path).trim()
-      : process.platform === "win32"
-        ? "mmx.cmd"
-        : "mmx";
+    const bin =
+      cleanCfgValue(cfg.mmx_path, "mmx_path") ||
+      (process.platform === "win32" ? "mmx.cmd" : "mmx");
     const env = { ...process.env };
-    if (String(cfg.mmx_config_dir || "").trim()) env.MMX_CONFIG_DIR = String(cfg.mmx_config_dir).trim();
-    if (String(cfg.base_url || "").trim()) env.MINIMAX_BASE_URL = String(cfg.base_url).trim();
-    if (String(cfg.region || "cn").trim()) env.MINIMAX_REGION = String(cfg.region).trim();
+    const configDir = cleanCfgValue(cfg.mmx_config_dir, "mmx_config_dir");
+    if (configDir) env.MMX_CONFIG_DIR = configDir;
+    const baseUrl = cleanCfgValue(cfg.base_url, "base_url");
+    if (baseUrl) env.MINIMAX_BASE_URL = baseUrl;
+    const region = cleanCfgValue(cfg.region, "region");
+    if (region) env.MINIMAX_REGION = region;
     let child;
     if (process.platform === "win32") {
       const cmdLine = `""${bin}" ${args.map(winCmdArg).join(" ")}"`;
