@@ -1,8 +1,8 @@
 // [title: OpenAI 对话公共模块]
 // [name: openaiChatCore]
-// [desc: OpenAI 兼容 /chat/completions 调用、消息历史裁剪与超时重试公共能力。内置国内主流大模型提供商预设（DeepSeek/智谱GLM/Kimi/MiniMax/通义Qwen），支持思考模式控制（thinking off/low/high/max，默认 off 关闭）、reasoning_content 解析与工具调用多轮回传，供 AI 聊天插件复用。]
+// [desc: OpenAI 兼容 /chat/completions 调用、消息历史裁剪与超时重试公共能力。内置国内主流大模型提供商预设（DeepSeek/智谱GLM/Kimi/MiniMax/通义Qwen），支持思考模式控制（thinking off/low/high/max，默认 off 关闭）、reasoning_content 解析与工具调用多轮回传。v3.0 起提供统一会话记忆（mm_chat_history），aiChat/voiceChat/visionChat 共用同一份上下文，实现跨插件记忆互通。]
 // [author: Mianpro官方]
-// [version: v2.0.0]
+// [version: v3.0.0]
 // [status: true]
 // [admin: false]
 // [public: true]
@@ -15,6 +15,7 @@
 // [depe: []]
 
 "use strict";
+const { Bucket } = require("sillygirl");
 
 const DEFAULT_BASE_URL = "https://api.openai.com/v1";
 const DEFAULT_MODEL = "gpt-4o-mini";
@@ -90,6 +91,34 @@ function trimHistory(history, maxRounds) {
     : [];
   const maxPairs = limit * 2;
   return messages.slice(-maxPairs);
+}
+
+// ===== 统一会话记忆（aiChat / voiceChat / visionChat 共用同一份，实现跨插件记忆互通）=====
+const UNIFIED_HISTORY_BUCKET = "mm_chat_history";
+const historyStore = new Bucket(UNIFIED_HISTORY_BUCKET);
+
+function chatKey(platform, chatId, userId) {
+  return `${String(platform || "unknown")}:${String(chatId || userId || "")}:${String(userId || "")}`;
+}
+
+async function loadHistory(key) {
+  const raw = String(await historyStore.get(key, "[]"));
+  try {
+    const value = JSON.parse(raw);
+    return Array.isArray(value) ? value : [];
+  } catch (_) {
+    return [];
+  }
+}
+
+async function saveHistory(key, history, maxRounds) {
+  const limit = (Number.isInteger(maxRounds) && maxRounds > 0 ? maxRounds : 10) * 2 + 2;
+  const trimmed = Array.isArray(history) ? history.slice(-limit) : [];
+  await historyStore.set(key, JSON.stringify(trimmed));
+}
+
+async function clearHistory(key) {
+  await historyStore.delete(key);
 }
 
 function buildMessages(systemPrompt, history, userContent) {
@@ -242,4 +271,9 @@ module.exports = {
   isThinkingModel,
   buildThinkingParam,
   chat,
+  UNIFIED_HISTORY_BUCKET,
+  chatKey,
+  loadHistory,
+  saveHistory,
+  clearHistory,
 };

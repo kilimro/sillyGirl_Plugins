@@ -1,8 +1,8 @@
 // [title: 图片识图助手]
 // [name: visionChat]
-// [desc: 仅 Gewe 平台、仅管理员可用。收到图片消息后调用多模态大模型识图并转成中文文字回复。基于 OpenAI 兼容 Chat Completions + image_url 多模态输入，默认 MiniMax-M3.1-Flash-Preview（M Plan 原生多模态，Key 自动读 ~/.mmx/config.json），也可配置其他支持 image_url 的厂商（GLM-4V / Qwen-VL / Kimi 等）。]
+// [desc: 仅 Gewe 平台、仅管理员可用。收到图片消息后调用多模态大模型识图并转成中文文字回复。基于 OpenAI 兼容 Chat Completions + image_url 多模态输入，默认 MiniMax-M3.1-Flash-Preview（M Plan 原生多模态，Key 自动读 ~/.mmx/config.json），也可配置其他支持 image_url 的厂商（GLM-4V / Qwen-VL / Kimi 等）。v1.1 起识图结果写入统一会话记忆 mm_chat_history，后续可直接用 aiChat / voiceChat 追问图片内容（只带识图文字描述，不带原图）。]
 // [author: Mianpro官方]
-// [version: v1.0.0]
+// [version: v1.1.0]
 // [rule: raw ^\[CQ:image[^\]]*\]$]
 // [status: true]
 // [admin: true]
@@ -11,7 +11,7 @@
 // [class: 大模型]
 // [icon: https://www.minimax.cn/favicon.ico]
 // [origin: 自定义]
-// [depe: ["./geweCore.js"]]
+// [depe: ["./geweCore.js","./openaiChatCore.js"]]
 
 "use strict";
 const { sender: s, plugin } = require("sillygirl");
@@ -19,6 +19,7 @@ const os = require("os");
 const path = require("path");
 const fs = require("fs");
 const geweCore = require("./geweCore.js");
+const mm = require("./openaiChatCore.js");
 
 const API_TIMEOUT = 90000; // 多模态识别 90 秒超时
 const DEFAULT_BASE = "https://api.minimax.cn/v1";
@@ -165,6 +166,18 @@ async function main() {
       return;
     }
     await s.reply(desc.slice(0, 1500));
+
+    // 写入统一会话记忆（mm_chat_history）：只带识图文字描述、不带原图，后续可用 aiChat / voiceChat 追问图片内容
+    try {
+      const chatId = String((await s.getChatId()) || "");
+      const userId = String((await s.getUserId()) || "");
+      const key = mm.chatKey(platform, chatId, userId);
+      const history = await mm.loadHistory(key);
+      history.push({ role: "user", content: `用户发来一张图片，图片内容为：${desc}` });
+      await mm.saveHistory(key, history, 10);
+    } catch (e) {
+      console.log(`[visionChat] 写入会话记忆失败: ${e?.message || e}`);
+    }
   } catch (err) {
     await s.reply(`识图失败：${String(err?.message || err).slice(0, 150)}`);
   }

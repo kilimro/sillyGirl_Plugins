@@ -1,8 +1,8 @@
 // [title: AI 聊天助手]
 // [name: aiChat]
-// [desc: 接入任意 OpenAI 兼容接口的 AI 助手，内置 DeepSeek/智谱GLM/Kimi/MiniMax/通义Qwen 提供商预设。消息必须以 ai/AI/机器人/小助手 开头才会触发，其他命令走原插件不抢。支持 BaseURL/Key/模型/长系统提示词（变量插值）/上下文轮数/工具调用/思考模式控制（thinking 默认 off 关闭，语音回复场景无需思考）。]
+// [desc: 接入任意 OpenAI 兼容接口的 AI 助手，内置 DeepSeek/智谱GLM/Kimi/MiniMax/通义Qwen 提供商预设。消息必须以 ai/AI/机器人/小助手 开头才会触发，其他命令走原插件不抢。支持 BaseURL/Key/模型/长系统提示词（变量插值）/上下文轮数/工具调用/思考模式控制（thinking 默认 off 关闭，语音回复场景无需思考）。v3.1 起会话记忆统一走 mm_chat_history，与 voiceChat/visionChat 共享上下文（发图识别后可直接追问图片内容）。]
 // [author: Mianpro官方]
-// [version: v3.0.0]
+// [version: v3.1.0]
 // [rule: ^(ai|起床了绵绵|Ai|机器人|小助手)[，,、:：\s]*[\s\S]*$]
 // [status: true]
 // [admin: false]
@@ -19,7 +19,6 @@ const mem = require("./memoryCore.js");
 const tts = require("./ttsCore.js");
 const geweCore = require("./geweCore.js");
 
-const HISTORY_BUCKET = "openai_chat_history";
 const MAX_CONTENT_LEN = 1500;
 const MAX_TOOL_ROUNDS = 4;
 
@@ -122,29 +121,13 @@ const form = new plugin.Form({
     .default("silk_url"),
 });
 
-const historyStore = new Bucket(HISTORY_BUCKET);
-
-// 上下文按 platform:chatId:userId 隔离——每个人各自有自己的记忆
+// 上下文按 platform:chatId:userId 隔离——统一会话记忆由 openaiChatCore 提供（与 voiceChat/visionChat 互通）
 async function chatKey() {
-  const platform = String((await s.getPlatform()) || "unknown");
-  const chatId = String((await s.getChatId()) || (await s.getUserId()));
-  const userId = String((await s.getUserId()) || "");
-  return `${platform}:${chatId}:${userId}`;
-}
-
-async function loadHistory(key) {
-  const raw = String(await historyStore.get(key, "[]"));
-  try {
-    const value = JSON.parse(raw);
-    return Array.isArray(value) ? value : [];
-  } catch (_) {
-    return [];
-  }
-}
-
-async function saveHistory(key, history) {
-  const trimmed = history.slice(-(Number(cfg.context_rounds) * 2 + 2));
-  await historyStore.set(key, JSON.stringify(trimmed));
+  return ai.chatKey(
+    String(await s.getPlatform()) || "unknown",
+    String((await s.getChatId()) || (await s.getUserId())),
+    String((await s.getUserId()) || ""),
+  );
 }
 
 function isPrivateChat(chatId, userId) {
@@ -322,7 +305,7 @@ async function chatWithTools(messages) {
 }
 
 async function handleStatus(key) {
-  const history = await loadHistory(key);
+  const history = await ai.loadHistory(key);
   const pairs = Math.floor(history.length / 2);
   return s.reply(
     [
@@ -337,7 +320,7 @@ async function handleStatus(key) {
 }
 
 async function handleClear(key) {
-  await historyStore.delete(key);
+  await ai.clearHistory(key);
   return s.reply("已清除你的 AI 记忆");
 }
 
@@ -402,7 +385,7 @@ async function main() {
 
   let history;
   try {
-    history = await loadHistory(key);
+    history = await ai.loadHistory(key);
     const systemPrompt = renderPrompt(cfg.system_prompt, systemVars);
     // 注入用户长期记忆
     let finalSystemPrompt = systemPrompt;
@@ -422,7 +405,7 @@ async function main() {
     }
     history.push({ role: "user", content: promptText });
     history.push({ role: "assistant", content: replyText });
-    await saveHistory(key, history);
+    await ai.saveHistory(key, history, Number(cfg.context_rounds) || 10);
     // 语音回复模式
     if (cfg.reply_mode === "voice") {
       try {

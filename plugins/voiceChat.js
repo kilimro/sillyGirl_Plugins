@@ -1,8 +1,8 @@
 // [title: 语音对话聊天]
 // [name: voiceChat]
-// [desc: 仅 Gewe 平台可用。收到语音消息自动转文字并接入 AI 对话（复刻 aiChat 核心逻辑）。语音转文字（STT）与 AI 对话各自独立配置模型，内置 DeepSeek/智谱GLM/Kimi/MiniMax/通义Qwen 提供商预设，思考模式默认 off 关闭（语音回复场景无需思考）。支持系统提示词变量、上下文记忆、同人冷却、群白名单与语音回复（reply_mode=voice）。]
+// [desc: 仅 Gewe 平台可用。收到语音消息自动转文字并接入 AI 对话（复刻 aiChat 核心逻辑）。语音转文字（STT）与 AI 对话各自独立配置模型，内置 DeepSeek/智谱GLM/Kimi/MiniMax/通义Qwen 提供商预设，思考模式默认 off 关闭（语音回复场景无需思考）。支持系统提示词变量、上下文记忆、同人冷却、群白名单与语音回复（reply_mode=voice）。v2.1 起会话记忆统一走 mm_chat_history，与 aiChat/visionChat 共享上下文（发图识别后可语音追问图片内容）。]
 // [author: Mianpro官方]
-// [version: v2.0.0]
+// [version: v2.1.0]
 // [rule: raw ^\[CQ:record[^\]]*\]$]
 // [status: true]
 // [admin: false]
@@ -20,7 +20,6 @@ const whisper = require("./whisperCore.js");
 const ai = require("./openaiChatCore.js");
 const tts = require("./ttsCore.js");
 
-const HISTORY_BUCKET = "voice_chat_history";
 const COOLDOWN_BUCKET = "voice_chat_cooldown";
 const MAX_CONTENT_LEN = 1500;
 const MAX_TOOL_ROUNDS = 4;
@@ -145,30 +144,15 @@ const form = new plugin.Form({
     .default("silk_url"),
 });
 
-const historyStore = new Bucket(HISTORY_BUCKET);
 const cooldownStore = new Bucket(COOLDOWN_BUCKET);
 
-// 上下文按 platform:chatId:userId 隔离——每个人各自有自己的记忆
+// 上下文按 platform:chatId:userId 隔离——统一会话记忆由 openaiChatCore 提供（与 aiChat/visionChat 互通）
 async function chatKey() {
-  const platform = String((await s.getPlatform()) || "unknown");
-  const chatId = String((await s.getChatId()) || (await s.getUserId()));
-  const userId = String((await s.getUserId()) || "");
-  return `${platform}:${chatId}:${userId}`;
-}
-
-async function loadHistory(key) {
-  const raw = String(await historyStore.get(key, "[]"));
-  try {
-    const value = JSON.parse(raw);
-    return Array.isArray(value) ? value : [];
-  } catch (_) {
-    return [];
-  }
-}
-
-async function saveHistory(key, history) {
-  const trimmed = history.slice(-(Number(cfg.context_rounds) * 2 + 2));
-  await historyStore.set(key, JSON.stringify(trimmed));
+  return ai.chatKey(
+    String(await s.getPlatform()) || "unknown",
+    String((await s.getChatId()) || (await s.getUserId())),
+    String((await s.getUserId()) || ""),
+  );
 }
 
 function isPrivateChat(chatId, userId) {
@@ -425,7 +409,7 @@ async function main() {
   };
 
   try {
-    const history = await loadHistory(key);
+    const history = await ai.loadHistory(key);
     const systemPrompt = renderPrompt(cfg.system_prompt, systemVars);
     const messages = ai.buildMessages(systemPrompt, history, text);
     const result = await chatWithTools(messages);
@@ -439,7 +423,7 @@ async function main() {
     }
     history.push({ role: "user", content: text });
     history.push({ role: "assistant", content: replyText });
-    await saveHistory(key, history);
+    await ai.saveHistory(key, history, Number(cfg.context_rounds) || 10);
     // 语音回复模式（复刻 aiChat：TTS 合成 -> Gewe mp3转silk 发语音条，失败回退文字）
     if (cfg.reply_mode === "voice") {
       try {
