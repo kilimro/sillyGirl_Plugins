@@ -1,8 +1,8 @@
 // [title: 图片识图助手]
 // [name: visionChat]
-// [desc: 仅管理员可用。收到图片消息后调用 MiniMax VLM 识图能力（走本机 mmx CLI 的 vision describe），自动把图片内容转成中文文字回复，类似语音转文字。M Plan 订阅直接可用，无需额外模型。]
+// [desc: 仅 Gewe 平台、仅管理员可用。收到图片消息后自动识别图片内容并转成中文文字回复（类似语音转文字）。识别支持两种模式：cli=走本机 mmx 命令（需装 mmx-cli）；api=直连 MiniMax VLM API（无需 mmx，Key 自动读 ~/.mmx/config.json）。]
 // [author: Mianpro官方]
-// [version: v1.0.0]
+// [version: v2.0.0]
 // [rule: raw ^\[CQ:image[^\]]*\]$]
 // [status: true]
 // [admin: true]
@@ -16,27 +16,44 @@
 "use strict";
 const { sender: s, plugin } = require("sillygirl");
 const { spawn } = require("child_process");
+const os = require("os");
+const path = require("path");
+const fs = require("fs");
 const geweCore = require("./geweCore.js");
 
 const TIMEOUT = 120000;
+const VLM_TIMEOUT = 90000;
+const MAX_IMAGE_BYTES = 8 * 1024 * 1024; // 图片 base64 上限 8MB
 const COOLDOWN_MS = 10000; // 10 秒内连续图片只识别一次，防刷屏
 
 const form = new plugin.Form({
+  mode: plugin.Form.string()
+    .title("识别模式")
+    .description("cli=走本机 mmx 命令（需装 mmx-cli 并登录）；api=直连 MiniMax VLM API（无需装 mmx，Key 可自动读 ~/.mmx/config.json）")
+    .default("cli"),
   mmx_path: plugin.Form.string()
-    .title("mmx 命令路径")
+    .title("mmx 命令路径（cli 模式）")
     .description("留空自动使用 PATH 里的 mmx（Windows 自动找 mmx.cmd）；找不到时可填完整路径，如 C:\\Users\\你\\AppData\\Roaming\\npm\\mmx.cmd")
     .default(""),
   region: plugin.Form.string()
     .title("服务区域")
-    .description("cn=国内（默认）；global=海外")
+    .description("cn=国内（默认）；global=海外。api 模式未填 BaseURL 时按此推断")
     .default("cn"),
   base_url: plugin.Form.string()
-    .title("API BaseURL（可选）")
+    .title("API BaseURL（cli 模式可选）")
     .description("留空用 CLI 自动识别；一般不用填")
     .default(""),
   mmx_config_dir: plugin.Form.string()
     .title("mmx 配置目录（可选）")
     .description("CLI 登录信息默认在 ~/.mmx/config.json；若 sillyGirl 运行账号读不到，可填实际目录，如 C:\\Users\\你\\.mmx")
+    .default(""),
+  api_key: plugin.Form.string()
+    .title("API Key（api 模式）")
+    .description("留空自动读取本机 ~/.mmx/config.json 里的订阅 Key；也可直接填 API Key")
+    .default(""),
+  api_base: plugin.Form.string()
+    .title("API BaseURL（api 模式）")
+    .description("留空按区域自动：cn=https://api.minimax.cn，global=https://api.minimax.io")
     .default(""),
   vision_prompt: plugin.Form.string()
     .title("识图提示词")
@@ -145,12 +162,83 @@ function firstText(data, keys = []) {
   return "";
 }
 
+// 读取本机 ~/.mmx/config.json 里的订阅 Key（CLI 登录凭证）
+function readMmxApiKey() {
+  try {
+    const p = path.join(os.homedir(), ".mmx", "config.json");
+    if (!fs.existsSync(p)) return "";
+    const data = JSON.parse(fs.readFileSync(p, "utf-8"));
+    return String(data?.apiKey || data?.api_key || data?.token || "").trim();
+  } catch (_) {
+    return "";
+  }
+}
+
+// api 模式：按配置或区域推断 MiniMax API BaseURL
+function resolveApiBase() {
+  const b = String(cfg.api_base || "").trim();
+  if (b) return b.replace(/\/+$/, "");
+  const region = String(cfg.region || "cn").trim().toLowerCase();
+  return region === "global" ? "https://api.minimax.io" : "https://api.minimax.cn";
+}
+
+// 下载图片并转成 base64 data URI（喂给 VLM API）
+async function urlToDataUri(imgUrl) {
+  const res = await fetch(imgUrl, { signal: AbortSignal.timeout(30000) });
+  if (!res.ok) throw new Error(`下载图片失败 HTTP ${res.status}`);
+  const buf = Buffer.from(await res.arrayBuffer());
+  if (!buf.length) throw new Error("下载图片为空");
+  if (buf.length > MAX_IMAGE_BYTES) {
+    throw new Error(`图片过大（${(buf.length / 1024 / 1024).toFixed(1)}MB，上限 8MB）`);
+  }
+  const mime = String(res.headers.get("content-type") || "").split(";")[0] || "image/jpeg";
+  return `data:${mime};base64,${buf.toString("base64")}`;
+}
+
+// api 模式：直连 MiniMax VLM API（POST /v1/coding_plan/vlm）
+async function visionApi(imgUrl) {
+  const key = String(cfg.api_key || "").trim() || readMmxApiKey();
+  if (!key) throw new Error("未找到 MiniMax Key：请填 api_key，或先在本机执行 mmx auth login");
+  const prompt =
+    String(cfg.vision_prompt || "").trim() ||
+    "请用中文详细描述这张图片的内容，包括主体、场景、人物或物体、画面中的文字等，越详细越好。";
+  const dataUri = await urlToDataUri(imgUrl);
+  const endpoint = `${resolveApiBase()}/v1/coding_plan/vlm`;
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), VLM_TIMEOUT);
+  try {
+    const res = await fetch(endpoint, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${key}`,
+      },
+      body: JSON.stringify({ prompt, image_url: dataUri }),
+      signal: controller.signal,
+    });
+    const text = await res.text();
+    if (!res.ok) throw new Error(`VLM HTTP ${res.status}：${text.slice(0, 150)}`);
+    const data = parseJson(text);
+    return String(firstText(data, ["content", "description", "text", "result", "answer"]) || "").trim();
+  } catch (err) {
+    if (err?.name === "AbortError") throw new Error("VLM 请求超时");
+    throw err;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 let lastVisionAt = 0;
 
 async function main() {
   cfg = (await form.get()) || {};
   const raw = String((await s.getMsg()) || "").trim();
   if (!raw) return;
+
+  // 仅 Gewe 平台可用（只有 gewe 能取到图片公网地址）
+  const platform = String((await s.getPlatform()) || "").toLowerCase();
+  if (platform !== "gewe") return;
+
   const chatId = String((await s.getChatId()) || "");
   const userId = String((await s.getUserId()) || "");
   const isPrivate = chatId === userId;
@@ -162,23 +250,13 @@ async function main() {
   if (now - lastVisionAt < COOLDOWN_MS) return;
   lastVisionAt = now;
 
-  // 提取图片公网地址（gewe 走 CDN 下载拿 URL；其他平台仅支持 file= 直接是 http 的情况）
-  const platform = String((await s.getPlatform()) || "").toLowerCase();
+  // 提取图片公网地址
   let imgUrl = "";
-  if (platform === "gewe") {
-    try {
-      imgUrl = await geweCore.downloadImageFromCq(raw);
-    } catch (e) {
-      await s.reply(`取图失败：${String(e?.message || e).slice(0, 100)}`);
-      return;
-    }
-  } else {
-    const m = raw.match(/file=([^,\]]+)/);
-    if (m && /^https?:\/\//i.test(m[1])) imgUrl = m[1];
-    else {
-      await s.reply("当前平台暂不支持识图（仅 Gewe 可取到图片公网地址）");
-      return;
-    }
+  try {
+    imgUrl = await geweCore.downloadImageFromCq(raw);
+  } catch (e) {
+    await s.reply(`取图失败：${String(e?.message || e).slice(0, 100)}`);
+    return;
   }
   if (!imgUrl) {
     await s.reply("未获取到图片地址");
@@ -186,14 +264,19 @@ async function main() {
   }
 
   try {
-    const prompt =
-      String(cfg.vision_prompt || "").trim() ||
-      "请用中文详细描述这张图片的内容，包括主体、场景、人物或物体、画面中的文字等，越详细越好。";
-    const args = ["vision", "describe", "--image", imgUrl, "--prompt", prompt, "--output", "json", "--non-interactive"];
-    const out = await runMmx(args, TIMEOUT);
-    const data = parseJson(out);
-    // vision describe 真实 json 输出：完整 response（含 content 字符串）
-    const desc = firstText(data, ["content", "description", "text", "result", "answer"]);
+    const mode = String(cfg.mode || "cli").trim().toLowerCase();
+    let desc = "";
+    if (mode === "api") {
+      desc = await visionApi(imgUrl);
+    } else {
+      const prompt =
+        String(cfg.vision_prompt || "").trim() ||
+        "请用中文详细描述这张图片的内容，包括主体、场景、人物或物体、画面中的文字等，越详细越好。";
+      const args = ["vision", "describe", "--image", imgUrl, "--prompt", prompt, "--output", "json", "--non-interactive"];
+      const out = await runMmx(args, TIMEOUT);
+      const data = parseJson(out);
+      desc = firstText(data, ["content", "description", "text", "result", "answer"]);
+    }
     if (!desc) {
       await s.reply("识别完成，但没有返回描述内容");
       return;
