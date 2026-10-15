@@ -2,7 +2,7 @@
 // [name: mmxTool]
 // [desc: 调用本机 MiniMax CLI（mmx）的多模态能力：画图、生成视频、语音合成、网络搜索、看图识别、配额查询、文本对话。使用前需在本机执行 npm install -g mmx-cli 并 mmx auth login 登录（订阅 Key 保存在本地 ~/.mmx/config.json，不会出现在本插件或代码中）。命令统一以 mmx 开头，不与现有插件冲突。]
 // [author: Mianpro官方]
-// [version: v1.0.4]
+// [version: v1.0.5]
 // [rule: ^(mmx|MMX|Mmx)[\s，,、:：]*(.*)$]
 // [status: true]
 // [admin: false]
@@ -314,8 +314,28 @@ async function handleSearch(query) {
 
 async function handleQuota() {
   const out = await runMmx(["quota"], 60000);
-  const text = String(out || "").trim();
-  await s.reply(text.slice(0, 1500) || "配额查询无返回，请确认已 mmx auth login");
+  const data = parseJson(out);
+  if (!data || !Array.isArray(data.model_remains)) {
+    await s.reply(String(out || "配额查询无返回，请确认已 mmx auth login").trim().slice(0, 500));
+    return;
+  }
+  const nameMap = { general: "通用（文本/图像）", video: "视频", speech: "语音", music: "音乐" };
+  const lines = ["===== MiniMax 配额 ====="];
+  for (const item of data.model_remains) {
+    const name = nameMap[item.model_name] || item.model_name || "未知模型";
+    const curTotal = item.current_interval_total_count ?? 0;
+    const curUsed = item.current_interval_usage_count ?? 0;
+    const curPct = item.current_interval_remaining_percent ?? "-";
+    const weekTotal = item.current_weekly_total_count ?? 0;
+    const weekUsed = item.current_weekly_usage_count ?? 0;
+    const weekPct = item.current_weekly_remaining_percent ?? "-";
+    lines.push(
+      `${name}`,
+      `  本周期：已用 ${curUsed}/${curTotal} 次，剩余 ${curPct}%`,
+      `  本周：已用 ${weekUsed}/${weekTotal} 次，剩余 ${weekPct}%`,
+    );
+  }
+  await s.reply(lines.join("\n"));
 }
 
 async function handleVision() {
