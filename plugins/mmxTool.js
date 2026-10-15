@@ -2,7 +2,7 @@
 // [name: mmxTool]
 // [desc: 调用本机 MiniMax CLI（mmx）的多模态能力：画图、生成视频、语音合成、网络搜索、看图识别、配额查询、文本对话。使用前需在本机执行 npm install -g mmx-cli 并 mmx auth login 登录（订阅 Key 保存在本地 ~/.mmx/config.json，不会出现在本插件或代码中）。命令统一以 mmx 开头，不与现有插件冲突。]
 // [author: Mianpro官方]
-// [version: v1.0.7]
+// [version: v1.0.8]
 // [rule: ^(mmx|MMX|Mmx)[\s，,、:：]*(.*)$]
 // [status: true]
 // [admin: true]
@@ -300,16 +300,16 @@ async function handleSearch(query) {
   const out = await runMmx(args, IMAGE_TIMEOUT);
   const data = parseJson(out);
   const list = Array.isArray(data?.results) ? data.results : Array.isArray(data) ? data : [];
-  const lines = list.slice(0, 5).map((r, i) => {
-    const title = firstText(r, ["title", "name", "query"]);
+  const summary = String(firstText(data, ["summary", "answer", "content", "text"]) || "").trim();
+  const lines = [];
+  if (summary) lines.push(summary.slice(0, 600));
+  for (const r of list.slice(0, 3)) {
+    const title = String(firstText(r, ["title", "name"]) || "无标题").trim().slice(0, 30);
     const link = extractUrls(r, ["url"])[0] || "";
-    return `${i + 1}. ${title || "无标题"}${link ? `\n   ${link}` : ""}`;
-  });
-  const summary = firstText(data, ["summary", "answer", "content", "text"]);
-  await s.reply(
-    ["===== 搜索结果 =====", summary ? `💡 ${summary}` : "", ...lines].filter(Boolean).join("\n") ||
-      "没有搜到结果",
-  );
+    lines.push(`${title}${link ? `\n${link}` : ""}`);
+  }
+  const reply = lines.join("\n\n");
+  await s.reply(reply ? reply.slice(0, 1500) : "没有搜到结果");
 }
 
 async function handleQuota() {
