@@ -18,3 +18,6 @@ backup/*
 
 # Local test plugins (never publish)
 local-tests/
+
+# 摸鱼 PHP 服务端（勿公开）
+moyu_php/
