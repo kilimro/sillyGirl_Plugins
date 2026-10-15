@@ -1,8 +1,8 @@
 // [title: 语音对话聊天]
 // [name: voiceChat]
-// [desc: 仅 Gewe 平台可用。收到语音消息自动转文字并接入 AI 对话（复刻 aiChat 核心逻辑）。语音转文字（STT）与 AI 对话各自独立配置模型，内置 DeepSeek/智谱GLM/Kimi/MiniMax/通义Qwen 提供商预设，思考模式默认 off 关闭（语音回复场景无需思考）。支持系统提示词变量、上下文记忆、同人冷却、群白名单与语音回复（reply_mode=voice）。v2.1 起会话记忆统一走 mm_chat_history，与 aiChat/visionChat 共享上下文（发图识别后可语音追问图片内容）。]
+// [desc: 仅 Gewe 平台可用。收到语音消息自动转文字并接入 AI 对话（复刻 aiChat 核心逻辑）。语音转文字（STT）与 AI 对话各自独立配置模型，内置 DeepSeek/智谱GLM/Kimi/MiniMax/通义Qwen 提供商预设，思考模式默认 off 关闭（语音回复场景无需思考）。支持系统提示词变量、上下文记忆、同人冷却、群白名单与语音回复（reply_mode=voice/text/mix，mix 按语音概率随机混合语音与文字，更有真人感）。v2.1 起会话记忆统一走 mm_chat_history，与 aiChat/visionChat 共享上下文（发图识别后可语音追问图片内容）。]
 // [author: Mianpro官方]
-// [version: v2.1.0]
+// [version: v2.2.0]
 // [rule: raw ^\[CQ:record[^\]]*\]$]
 // [status: true]
 // [admin: false]
@@ -104,8 +104,14 @@ const form = new plugin.Form({
   // ===== 语音回复（TTS）=====
   reply_mode: plugin.Form.string()
     .title("回复模式")
-    .description("text=文字回复（默认）；voice=语音回复（需要配置下面的 TTS）")
+    .description("text=文字回复（默认）；voice=全部语音回复（需配置下面的 TTS）；mix=随机混合，按语音概率一会发语音一会发文字，更有真人感")
     .default("text"),
+  voice_probability: plugin.Form.number()
+    .title("语音回复概率（mix 模式）")
+    .description("reply_mode=mix 时生效：0-100，数值越大越常发语音，默认 50（一半一半）")
+    .min(0)
+    .max(100)
+    .default(50),
   tts_provider: plugin.Form.string()
     .title("TTS 提供商")
     .description("minimax=MiniMax t2a_v2；custom=自定义 HTTP TTS 接口")
@@ -424,8 +430,18 @@ async function main() {
     history.push({ role: "user", content: text });
     history.push({ role: "assistant", content: replyText });
     await ai.saveHistory(key, history, Number(cfg.context_rounds) || 10);
-    // 语音回复模式（复刻 aiChat：TTS 合成 -> Gewe mp3转silk 发语音条，失败回退文字）
-    if (cfg.reply_mode === "voice") {
+    // 回复模式：text=文字 / voice=全部语音 / mix=随机混合（按语音概率 roll）
+    const mode = String(cfg.reply_mode || "text").toLowerCase();
+    let useVoice = false;
+    if (mode === "voice") {
+      useVoice = true;
+    } else if (mode === "mix") {
+      const p = Number(cfg.voice_probability);
+      const prob = Number.isFinite(p) ? Math.min(100, Math.max(0, p)) : 50;
+      useVoice = Math.random() * 100 < prob;
+    }
+    // 语音回复（复刻 aiChat：TTS 合成 -> Gewe mp3转silk 发语音条，失败回退文字）
+    if (useVoice) {
       try {
         const ttsOpts =
           cfg.tts_provider === "custom"
