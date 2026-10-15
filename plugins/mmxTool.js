@@ -2,7 +2,7 @@
 // [name: mmxTool]
 // [desc: 调用本机 MiniMax CLI（mmx）的多模态能力：画图、生成视频、语音合成、网络搜索、看图识别、配额查询、文本对话。使用前需在本机执行 npm install -g mmx-cli 并 mmx auth login 登录（订阅 Key 保存在本地 ~/.mmx/config.json，不会出现在本插件或代码中）。命令统一以 mmx 开头，不与现有插件冲突。]
 // [author: Mianpro官方]
-// [version: v1.0.10]
+// [version: v1.1.0]
 // [rule: ^(mmx|MMX|Mmx)[\s，,、:：]*(.*)$]
 // [status: true]
 // [admin: true]
@@ -16,6 +16,8 @@
 "use strict";
 const { sender: s, plugin } = require("sillygirl");
 const { spawn } = require("child_process");
+const path = require("path");
+const fs = require("fs");
 const geweCore = require("./geweCore.js");
 
 const IMAGE_TIMEOUT = 180000; // 图片生成一般 10-30 秒
@@ -46,6 +48,14 @@ const form = new plugin.Form({
   image_ratio: plugin.Form.string()
     .title("图片比例")
     .description("如 16:9 / 1:1 / 9:16 / 3:4；留空用 CLI 默认")
+    .default(""),
+  img_dir: plugin.Form.string()
+    .title("图片输出目录")
+    .description("mmx 生成图片的保存目录；留空默认当前目录下 mmx_img。注意：CLI 会把图片下载到本地，json 只返回本地路径")
+    .default(""),
+  img_url_prefix: plugin.Form.string()
+    .title("图片公网前缀")
+    .description("把图片目录反代/静态托管后的前缀，如 https://img.xxx.com/mmx/；发图时以 前缀+文件名 发出。留空则只回复本地路径")
     .default(""),
   voice: plugin.Form.string()
     .title("语音音色（可选）")
@@ -97,6 +107,8 @@ const MENU = [
   "mmx帮助 —— 快速命令列表",
   "",
   "提示：命令与内容之间无需空格，如 mmx画猫 即可",
+  "",
+  "提示：图片由 CLI 下载到本地（json 只回路径），发图需在插件配置里设置「图片公网前缀」反代输出目录；视频/语音直接返回公网链接",
 ].join("\n");
 
 let cfg = {};
@@ -278,40 +290,82 @@ async function sendVoice(url) {
 }
 
 async function handleImage(prompt) {
-  const args = ["image", "generate", "--prompt", prompt, "--output", "json", "--non-interactive", "--quiet"];
+  // 真实 json 输出：{ id, saved:[本地路径], success_count, failed_count }——CLI 把图片下载到本地，不输出 URL
+  const args = ["image", "generate", "--prompt", prompt, "--output", "json", "--non-interactive"];
   if (String(cfg.image_ratio || "").trim()) args.push("--aspect-ratio", String(cfg.image_ratio).trim());
+  const outDir = String(cleanCfgValue(cfg.img_dir, "img_dir") || "").trim() || path.join(process.cwd(), "mmx_img");
+  if (!fs.existsSync(outDir)) fs.mkdirSync(outDir, { recursive: true });
+  args.push("--out-dir", outDir);
   const out = await runMmx(args, IMAGE_TIMEOUT);
   const data = parseJson(out);
-  const url = extractUrls(data, ["image", "url"])[0];
-  if (!url) throw new Error("未从返回中解析到图片地址");
-  await sendImage(url);
+  const saved = Array.isArray(data?.saved) ? data.saved : [];
+  if (!saved.length) {
+    const anyUrl = extractUrls(data, ["image", "url"])[0] || extractUrls(out, ["image", "url"])[0];
+    if (anyUrl) return sendImage(anyUrl);
+    throw new Error("未从返回中解析到图片（saved 为空）");
+  }
+  const prefix = String(cleanCfgValue(cfg.img_url_prefix, "img_url_prefix") || "").trim();
+  if (!prefix) {
+    await s.reply(
+      `图片已生成（本地路径）：\n${saved.join("\n")}\n\n要直接发到聊天，请配置「图片公网前缀」（把输出目录反代成 HTTP 地址，如 https://img.xxx.com/mmx/）`,
+    );
+    return;
+  }
+  const urls = saved.map((p) => `${prefix.replace(/\/+$/, "")}/${String(p).split(/[\\/]/).pop()}`);
+  for (const u of urls.slice(0, 3)) await sendImage(u);
 }
 
 async function handleVideo(prompt) {
   await s.reply("⏳ 正在生成视频，大约需要 1-3 分钟，好了发你");
-  const args = ["video", "generate", "--prompt", prompt, "--output", "json", "--non-interactive", "--quiet"];
-  const out = await runMmx(args, VIDEO_TIMEOUT);
-  const data = parseJson(out);
-  const url = extractUrls(data, ["video", "url"])[0];
-  if (!url) throw new Error("未从返回中解析到视频地址");
-  await s.reply(`🎬 视频已生成：${url}`);
+  // CLI 默认模式会下载到本地并输出裸路径；用 --no-wait 拿任务 ID，再轮询 task get 取公网 URL
+  const genArgs = ["video", "generate", "--prompt", prompt, "--no-wait", "--output", "json", "--non-interactive"];
+  const genOut = await runMmx(genArgs, IMAGE_TIMEOUT);
+  const genData = parseJson(genOut);
+  let taskId = String(genData?.taskId || "").trim();
+  if (!taskId) {
+    const tm = String(genOut || "").match(/"taskId"\s*:\s*"([^"]+)"/);
+    if (tm) taskId = tm[1].trim();
+  }
+  if (!taskId) throw new Error("未从返回中解析到视频任务 ID");
+  const deadline = Date.now() + 180000;
+  let last = "";
+  while (Date.now() < deadline) {
+    await new Promise((r) => setTimeout(r, 5000));
+    const out = await runMmx(["video", "task", "get", "--task-id", taskId, "--output", "json", "--non-interactive"], 60000);
+    const data = parseJson(out);
+    const status = String(data?.status || "").trim();
+    const url = String(data?.url || extractUrls(data, ["url", "video"])[0] || "").trim();
+    last = status;
+    if (/succeeded|success/i.test(status)) {
+      if (url) {
+        await s.reply(`🎬 视频已生成：${url}`);
+        return;
+      }
+      throw new Error("任务已完成但未返回视频 URL（v1 模型暂不支持，请换 video-02 等 v2 模型）");
+    }
+    if (/failed|cancelled|expired/i.test(status)) {
+      throw new Error(`视频生成失败：${status}`);
+    }
+  }
+  throw new Error(`视频生成超时（最后状态：${last || "未知"}）`);
 }
 
 async function handleSpeech(text) {
-  const args = ["speech", "synthesize", "--text", text, "--output", "json", "--non-interactive", "--quiet"];
+  // 不带 --out 时 json 输出 { url, duration_ms, size_bytes }；注意不能用 --quiet（会把 json 降成裸值）
+  const args = ["speech", "synthesize", "--text", text, "--output", "json", "--non-interactive"];
   if (String(cfg.voice || "").trim()) args.push("--voice", String(cfg.voice).trim());
   if (Number(cfg.speech_speed) && Number(cfg.speech_speed) !== 1) {
     args.push("--speed", String(Number(cfg.speech_speed)));
   }
   const out = await runMmx(args, IMAGE_TIMEOUT);
   const data = parseJson(out);
-  const url = extractUrls(data, ["audio", "url"])[0];
+  const url = extractUrls(data, ["audio", "url"])[0] || extractUrls(out, ["audio", "url"])[0];
   if (!url) throw new Error("未从返回中解析到语音地址");
   await sendVoice(url);
 }
 
 async function handleSearch(query) {
-  const args = ["search", "query", "--q", query, "--output", "json", "--non-interactive", "--quiet"];
+  const args = ["search", "query", "--q", query, "--output", "json", "--non-interactive"];
   const out = await runMmx(args, IMAGE_TIMEOUT);
   const data = parseJson(out);
   // 真实返回结构：{ organic: [{ title, link, snippet, date }] }
@@ -381,7 +435,7 @@ async function handleVision() {
         return;
       }
       try {
-        const args = ["vision", "describe", "--image", imgUrl, "--output", "json", "--non-interactive", "--quiet"];
+        const args = ["vision", "describe", "--image", imgUrl, "--output", "json", "--non-interactive"];
         const out = await runMmx(args, IMAGE_TIMEOUT);
         const data = parseJson(out);
         const desc = firstText(data, ["description", "content", "text", "result", "answer"]);
@@ -397,7 +451,8 @@ async function handleVision() {
 }
 
 async function handleText(prompt) {
-  const args = ["text", "chat", "--message", prompt, "--output", "json", "--non-interactive", "--quiet"];
+  // 不带 --quiet 时 json 输出完整 response（含 content 字段），流式/异常输出走下面的多段兜底
+  const args = ["text", "chat", "--message", prompt, "--output", "json", "--non-interactive"];
   if (String(cfg.text_model || "").trim()) args.push("--model", String(cfg.text_model).trim());
   const out = await runMmx(args, IMAGE_TIMEOUT);
   // 解析：单个 JSON 正常取；多段（流式 delta 兜底）按出现顺序拼接 content 类字段；失败回退原文
