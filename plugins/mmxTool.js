@@ -2,14 +2,14 @@
 // [name: mmxTool]
 // [desc: 调用本机 MiniMax CLI（mmx）的多模态能力：画图、生成视频、语音合成、网络搜索、看图识别、配额查询、文本对话。使用前需在本机执行 npm install -g mmx-cli 并 mmx auth login 登录（订阅 Key 保存在本地 ~/.mmx/config.json，不会出现在本插件或代码中）。命令统一以 mmx 开头，不与现有插件冲突。]
 // [author: Mianpro官方]
-// [version: v1.0.1]
+// [version: v1.0.2]
 // [rule: ^(mmx|MMX|Mmx)[\s，,、:：]*(.*)$]
 // [status: true]
 // [admin: false]
 // [public: true]
 // [priority: 1]
 // [class: 大模型]
-// [icon: https://avatars.githubusercontent.com/u/178178509?s=200&v=4]
+// [icon: https://www.minimax.cn/favicon.ico]
 // [origin: 自定义]
 // [depe: ["./geweCore.js"]]
 
@@ -75,7 +75,28 @@ const HELP = [
   "mmx看看 识别你随后发的图片",
   "mmx配额 查看 M Plan 剩余额度",
   "mmx对话 <问题> 文本对话",
-  "mmx帮助 显示本帮助",
+  "mmx菜单 接入与使用示例手册",
+].join("\n");
+
+const MENU = [
+  "===== MiniMax 工具箱 · 接入手册 =====",
+  "【接入步骤（每台机器只需一次）】",
+  "1. 在电脑 cmd / PowerShell 执行：npm install -g mmx-cli",
+  "2. 执行：mmx auth login（粘贴订阅 Key 或扫码，Key 保存在本地 ~/.mmx，不经过插件）",
+  "3. 执行：mmx quota 确认能看到 M Plan 用量即登录成功",
+  "4. 重启 sillyGirl 使新命令生效",
+  "",
+  "【使用示例】",
+  "mmx画 赛博朋克城市 —— 生成图片",
+  "mmx视频 夕阳下的猫 —— 生成视频（约 1-3 分钟）",
+  "mmx说 欢迎使用MiniMax —— 语音合成",
+  "mmx搜 MiniMax最新新闻 —— 网络搜索",
+  "mmx看看 —— 识别你随后发的图片",
+  "mmx配额 —— 查看 M Plan 剩余额度",
+  "mmx对话 什么是多模态模型 —— 文本对话",
+  "mmx帮助 —— 快速命令列表",
+  "",
+  "提示：命令与内容之间无需空格，如 mmx画猫 即可",
 ].join("\n");
 
 let cfg = {};
@@ -331,7 +352,7 @@ async function main() {
 
   // 子命令解析：支持 "mmx 画 xxx" / "mmx画 xxx" / "mmx画xxx" 等任意写法（命令与描述之间无需空格）
   const cmdMatch = input.match(
-    /^(画画|生成图片|搜索|视频|语音|朗读|看看|看图|识别|配额|额度|用量|对话|帮助|画|搜|说|image|video|speech|search|vision|quota|chat|text|help|menu)[\s，,、:：]*(.*)$/is,
+    /^(画画|生成图片|搜索|视频|语音|朗读|看看|看图|识别|配额|额度|用量|对话|帮助|菜单|画|搜|说|image|video|speech|search|vision|quota|chat|text|help|menu)[\s，,、:：]*(.*)$/is,
   );
   const cmdKey = cmdMatch ? String(cmdMatch[1]).toLowerCase() : "";
   const rest = cmdMatch ? String(cmdMatch[2] || "").trim() : "";
@@ -379,6 +400,8 @@ async function main() {
       case "menu":
       case "":
         return s.reply(HELP);
+      case "菜单":
+        return s.reply(MENU);
       default:
         return s.reply(`未识别的命令：${cmd}（发送 mmx 帮助 查看用法）`);
     }
