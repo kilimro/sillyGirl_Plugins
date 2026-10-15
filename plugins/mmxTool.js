@@ -2,7 +2,7 @@
 // [name: mmxTool]
 // [desc: 调用本机 MiniMax CLI（mmx）的多模态能力：画图、生成视频、语音合成、网络搜索、看图识别、配额查询、文本对话。使用前需在本机执行 npm install -g mmx-cli 并 mmx auth login 登录（订阅 Key 保存在本地 ~/.mmx/config.json，不会出现在本插件或代码中）。命令统一以 mmx 开头，不与现有插件冲突。]
 // [author: Mianpro官方]
-// [version: v1.0.2]
+// [version: v1.0.3]
 // [rule: ^(mmx|MMX|Mmx)[\s，,、:：]*(.*)$]
 // [status: true]
 // [admin: false]
@@ -101,7 +101,16 @@ const MENU = [
 
 let cfg = {};
 
-// 执行 mmx 命令（spawn 不经 shell，参数安全无注入；Windows 用 mmx.cmd）
+// Windows 下 .cmd 参数：剔除 cmd 元字符（防注入/防解析错乱），再双引号包裹
+function winCmdArg(value) {
+  const cleaned = String(value)
+    .replace(/["%^!&|<>]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  return `"${cleaned}"`;
+}
+
+// 执行 mmx 命令（macOS/Linux 直接 spawn；Windows 必须经 cmd.exe /c 拉起 .cmd，参数已清洗+引号包裹）
 function runMmx(args, timeoutMs) {
   return new Promise((resolve, reject) => {
     const bin = cfg.mmx_path
@@ -113,12 +122,22 @@ function runMmx(args, timeoutMs) {
     if (String(cfg.mmx_config_dir || "").trim()) env.MMX_CONFIG_DIR = String(cfg.mmx_config_dir).trim();
     if (String(cfg.base_url || "").trim()) env.MINIMAX_BASE_URL = String(cfg.base_url).trim();
     if (String(cfg.region || "cn").trim()) env.MINIMAX_REGION = String(cfg.region).trim();
-    const child = spawn(bin, args, { env, windowsHide: true, encoding: "utf8" });
+    let child;
+    if (process.platform === "win32") {
+      const cmdLine = `""${bin}" ${args.map(winCmdArg).join(" ")}"`;
+      child = spawn(process.env.ComSpec || "cmd.exe", ["/d", "/s", "/c", cmdLine], {
+        env,
+        windowsHide: true,
+        windowsVerbatimArguments: true,
+      });
+    } else {
+      child = spawn(bin, args, { env, windowsHide: true });
+    }
     let stdout = "";
     let stderr = "";
     const timer = setTimeout(() => child.kill(), timeoutMs || IMAGE_TIMEOUT);
-    child.stdout.on("data", (d) => { stdout += d; });
-    child.stderr.on("data", (d) => { stderr += d; });
+    child.stdout?.on("data", (d) => { stdout += d; });
+    child.stderr?.on("data", (d) => { stderr += d; });
     child.on("error", (err) => {
       clearTimeout(timer);
       reject(new Error(`mmx 启动失败：${err?.message || err}（未安装请先 npm install -g mmx-cli，或配置 mmx_path）`));
