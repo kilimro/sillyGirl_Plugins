@@ -2,7 +2,7 @@
 // [name: deerDiary]
 // [desc: 发「已撸」打卡（不限次数，当日次数累加），调用 deer_calendar PHP 服务渲染打卡日历图并下发。支持月历（默认）/年历/月报/年报/生涯/排行六种图：已撸=打卡+本月日历；已撸 月报/年报/年历/生涯=打卡+对应图；已撸 排行=当月排行榜（不打卡）；已撸 菜单=查看使用说明。打卡走 index.php 的 type=checkin 写入接口。uid 用平台用户 ID 区分数据，群聊+私聊都生效。]
 // [author: Mianpro官方]
-// [version: v1.0.5]
+// [version: v1.0.6]
 // [rule: ^已撸[，,、:：\s]*(.*)$]
 // [status: true]
 // [admin: false]
@@ -68,21 +68,23 @@ async function getNickname() {
       }
     }
   }
-  // yyw 等适配器：消息对象自带 user_name（FinalFromName 用户昵称）字段，优先尝试多路取值
-  const tries = [
-    async () => (typeof s.Get === "function" ? String(await s.Get("user_name") || "") : ""),
-    async () => (typeof s.Get === "function" ? String(await s.Get("UserName") || "") : ""),
-    async () => (s.Data && typeof s.Data.Get === "function" ? String(await s.Data.Get("user_name") || "") : ""),
-    async () => (typeof s.UserName !== "undefined" ? String(s.UserName || "") : ""),
-    async () => (typeof s.getNickname === "function" ? String(await s.getNickname()) : ""),
-    async () => (typeof s.getUserName === "function" ? String(await s.getUserName()) : ""),
-  ];
-  for (const fn of tries) {
-    try {
-      const n = (await fn()).trim();
+  // 官方 API：s.getEvent() 返回事件对象，yyw 等适配器通过 user_name(FinalFromName) 传入用户昵称
+  try {
+    if (typeof s.getEvent === "function") {
+      const ev = (await s.getEvent()) || {};
+      const n = String(
+        ev.user_name || ev.UserName || ev.final_from_name || ev.FinalFromName || ev.from_name || ev.FromName || ev.nickname || ""
+      ).trim();
       if (n) return n;
-    } catch (_) {}
-  }
+    }
+  } catch (_) {}
+  // 兜底：getUserName 返回昵称才用（过滤 wxid 这类 ID 串）
+  try {
+    if (typeof s.getUserName === "function") {
+      const n = String(await s.getUserName() || "").trim();
+      if (n && !/^wxid/i.test(n)) return n;
+    }
+  } catch (_) {}
   return "";
 }
 
