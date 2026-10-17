@@ -1,8 +1,8 @@
 // [title: 撸管日记]
 // [name: deerDiary]
-// [desc: 发「已撸」打卡（不限次数，当日次数累加），调用 deer_calendar PHP 服务渲染打卡日历图并下发。支持月历（默认）/年历/月报/年报/生涯/排行六种图：已撸=打卡+本月日历；已撸 月报/年报/年历/生涯=打卡+对应图；已撸 排行=当月排行榜（不打卡）。uid 用平台用户 ID 区分数据，群聊+私聊都生效。]
+// [desc: 发「已撸」打卡（不限次数，当日次数累加），调用 deer_calendar PHP 服务渲染打卡日历图并下发。支持月历（默认）/年历/月报/年报/生涯/排行六种图：已撸=打卡+本月日历；已撸 月报/年报/年历/生涯=打卡+对应图；已撸 排行=当月排行榜（不打卡）。打卡走 index.php 的 type=checkin 写入接口。uid 用平台用户 ID 区分数据，群聊+私聊都生效。]
 // [author: Mianpro官方]
-// [version: v1.0.0]
+// [version: v1.0.1]
 // [rule: ^已撸[，,、:：\s]*(.*)$]
 // [status: true]
 // [admin: false]
@@ -37,13 +37,9 @@ const form = new plugin.Form({
     .title("API 服务地址")
     .description("deer_calendar PHP 服务地址（结尾带/），默认：https://ceshi.920pdd.com/wx/deer_calendar_php/public/")
     .default("https://ceshi.920pdd.com/wx/deer_calendar_php/public/"),
-  checkin_path: plugin.Form.string()
-    .title("打卡接口路径")
-    .description("写入打卡记录用的 PHP 文件（部署 checkin.php 到 public/），相对 API 服务地址")
-    .default("checkin.php"),
   api_token: plugin.Form.string()
     .title("打卡接口 Token")
-    .description("PHP 端 checkin.php 里配置了 $TOKEN 才填，留空则不传"),
+    .description("index.php 里 CHECKIN_TOKEN 配置了才填，留空则不传"),
   enable_private: plugin.Form.boolean().title("私聊生效").default(true),
   enable_group: plugin.Form.boolean().title("群聊生效").default(true),
 });
@@ -124,10 +120,9 @@ async function main() {
 
   try {
     const today = todayStr();
-    // 1. 打卡（追加当日次数，不限次数）
+    // 1. 打卡（追加当日次数，不限次数；走 index.php 的 type=checkin）
     if (needCheckin) {
-      const checkinPath = String(cfg.checkin_path || "checkin.php").replace(/^\//, "");
-      let checkinUrl = `${base}${checkinPath}?uid=${encodeURIComponent(userId)}&user=${encodeURIComponent(nickname)}&count=1&date=${today}`;
+      let checkinUrl = `${base}?type=checkin&uid=${encodeURIComponent(userId)}&user=${encodeURIComponent(nickname)}&count=1&date=${today}`;
       const token = String(cfg.api_token || "").trim();
       if (token) checkinUrl += `&token=${encodeURIComponent(token)}`;
       const ck = await fetchJson(checkinUrl);
