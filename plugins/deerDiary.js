@@ -1,8 +1,8 @@
 // [title: 撸管日记]
 // [name: deerDiary]
-// [desc: 发「已撸」打卡（不限次数，当日次数累加），调用 deer_calendar PHP 服务渲染打卡日历图并下发。支持月历（默认）/年历/月报/年报/生涯/排行六种图：已撸=打卡+本月日历；已撸 月报/年报/年历/生涯=打卡+对应图；已撸 排行=当月排行榜（不打卡）。打卡走 index.php 的 type=checkin 写入接口。uid 用平台用户 ID 区分数据，群聊+私聊都生效。]
+// [desc: 发「已撸」打卡（不限次数，当日次数累加），调用 deer_calendar PHP 服务渲染打卡日历图并下发。支持月历（默认）/年历/月报/年报/生涯/排行六种图：已撸=打卡+本月日历；已撸 月报/年报/年历/生涯=打卡+对应图；已撸 排行=当月排行榜（不打卡）；已撸 菜单=查看使用说明。打卡走 index.php 的 type=checkin 写入接口。uid 用平台用户 ID 区分数据，群聊+私聊都生效。]
 // [author: Mianpro官方]
-// [version: v1.0.2]
+// [version: v1.0.3]
 // [rule: ^已撸[，,、:：\s]*(.*)$]
 // [status: true]
 // [admin: false]
@@ -117,6 +117,21 @@ async function main() {
   if (!isPrivate && !enableGroup) return;
 
   const rest = raw.replace(/^已撸[，,、:：\s]*/, "").trim();
+
+  // 「已撸 菜单」：纯文字使用说明，不打卡不渲染
+  if (rest === "菜单") {
+    await s.reply(
+      "已撸使用菜单：\n" +
+        "已撸 - 打卡1次，并发送本月日历\n" +
+        "已撸 月报 - 打卡，并发送本月月报\n" +
+        "已撸 年历 - 打卡，并发送全年日历\n" +
+        "已撸 年报 - 打卡，并发送年度统计\n" +
+        "已撸 生涯 - 打卡，并发送累计生涯图\n" +
+        "已撸 排行 - 发送当月排行榜（不打卡）"
+    );
+    return;
+  }
+
   const type = TYPE_MAP[rest] || "month_calendar";
   const needCheckin = type !== "ranking"; // 排行是查询当月全员数据，不打卡
 
