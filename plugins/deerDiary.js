@@ -2,7 +2,7 @@
 // [name: deerDiary]
 // [desc: 发「已撸」打卡（不限次数，当日次数累加），调用 deer_calendar PHP 服务渲染打卡日历图并下发。支持月历（默认）/年历/月报/年报/生涯/排行六种图：已撸=打卡+本月日历；已撸 月报/年报/年历/生涯=打卡+对应图；已撸 排行=当月排行榜（不打卡）。打卡走 index.php 的 type=checkin 写入接口。uid 用平台用户 ID 区分数据，群聊+私聊都生效。]
 // [author: Mianpro官方]
-// [version: v1.0.1]
+// [version: v1.0.2]
 // [rule: ^已撸[，,、:：\s]*(.*)$]
 // [status: true]
 // [admin: false]
@@ -16,6 +16,8 @@
 "use strict";
 const { sender: s, plugin } = require("sillygirl");
 const geweCore = require("./geweCore.js");
+
+const DEFAULT_BASE = "https://ceshi.920pdd.com/wx/deer_calendar_php/public/";
 
 // 子命令 → 图类型（无参数默认本月日历）
 const TYPE_MAP = {
@@ -108,14 +110,17 @@ async function main() {
   const chatId = String((await s.getChatId()) || "").trim();
   if (!userId) return;
   const isPrivate = !chatId || String(chatId) === String(userId);
-  if (isPrivate && !cfg.enable_private) return;
-  if (!isPrivate && !cfg.enable_group) return;
+  // 配置未保存（undefined）时默认放行，避免新装插件静默吞消息
+  const enablePrivate = cfg.enable_private === undefined ? true : !!cfg.enable_private;
+  const enableGroup = cfg.enable_group === undefined ? true : !!cfg.enable_group;
+  if (isPrivate && !enablePrivate) return;
+  if (!isPrivate && !enableGroup) return;
 
   const rest = raw.replace(/^已撸[，,、:：\s]*/, "").trim();
   const type = TYPE_MAP[rest] || "month_calendar";
   const needCheckin = type !== "ranking"; // 排行是查询当月全员数据，不打卡
 
-  const base = String(cfg.api_base || "").trim().replace(/\/+$/, "") + "/";
+  const base = (String(cfg.api_base || "").trim() || DEFAULT_BASE).replace(/\/+$/, "") + "/";
   const nickname = (await getNickname()) || userId;
 
   try {
