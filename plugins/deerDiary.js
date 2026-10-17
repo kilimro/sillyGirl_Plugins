@@ -2,7 +2,7 @@
 // [name: deerDiary]
 // [desc: 发「已撸」打卡（不限次数，当日次数累加），调用 deer_calendar PHP 服务渲染打卡日历图并下发。支持月历（默认）/年历/月报/年报/生涯/排行六种图：已撸=打卡+本月日历；已撸 月报/年报/年历/生涯=打卡+对应图；已撸 排行=当月排行榜（不打卡）；已撸 菜单=查看使用说明。打卡走 index.php 的 type=checkin 写入接口。uid 用平台用户 ID 区分数据，群聊+私聊都生效。]
 // [author: Mianpro官方]
-// [version: v1.0.3]
+// [version: v1.0.4]
 // [rule: ^已撸[，,、:：\s]*(.*)$]
 // [status: true]
 // [admin: false]
@@ -68,11 +68,12 @@ async function getNickname() {
       }
     }
   }
-  try {
-    if (typeof s.getUserName === "function") return String(await s.getUserName());
-  } catch (_) {}
+  // 昵称优先：先 getNickname，再 getUserName 兜底（部分适配器 getUserName 返回的是 ID 串而非昵称）
   try {
     if (typeof s.getNickname === "function") return String(await s.getNickname());
+  } catch (_) {}
+  try {
+    if (typeof s.getUserName === "function") return String(await s.getUserName());
   } catch (_) {}
   return "";
 }
