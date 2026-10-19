@@ -2,7 +2,7 @@
 // [name: deerDiary]
 // [desc: 发「已撸」打卡（不限次数，当日次数累加），调用 deer_calendar PHP 服务渲染打卡日历图并下发。仅裸「已撸」打卡；子命令均为查询不打卡：已撸 月历/月报/年历/年报/生涯=查询对应图，已撸 排行=当月排行榜，已撸 菜单=使用说明。打卡走 index.php 的 type=checkin 写入接口。uid 用平台用户 ID 区分数据，群聊+私聊都生效。]
 // [author: Mianpro官方]
-// [version: v1.0.7]
+// [version: v1.0.8]
 // [rule: ^已撸[，,、:：\s]*(.*)$]
 // [status: true]
 // [admin: false]
@@ -48,6 +48,11 @@ const form = new plugin.Form({
 
 let cfg = {};
 
+// 过滤 yyw 等平台 emoji 占位码（如 [YW.emoji,id=128116]），避免生成图片出现乱码
+function cleanNickname(n) {
+  return String(n || "").replace(/\[YW\.emoji,id=\d+\]/g, "").trim();
+}
+
 async function getNickname() {
   // Gewe：适配器拿不到对方昵称（getUserName 返回的是 ID 串），改从简要信息接口取备注/昵称
   const platform = String((await s.getPlatform()) || "").toLowerCase();
@@ -58,8 +63,8 @@ async function getNickname() {
         const list = await geweCore.getBriefInfo([userId]);
         const info = Array.isArray(list) && list[0];
         if (info) {
-          const remark = String(info.remark || "").trim();
-          const nick = String(info.nickName || "").trim();
+          const remark = cleanNickname(info.remark);
+          const nick = cleanNickname(info.nickName);
           if (remark) return remark;
           if (nick) return nick;
         }
@@ -72,16 +77,16 @@ async function getNickname() {
   try {
     if (typeof s.getEvent === "function") {
       const ev = (await s.getEvent()) || {};
-      const n = String(
+      const n = cleanNickname(
         ev.user_name || ev.UserName || ev.final_from_name || ev.FinalFromName || ev.from_name || ev.FromName || ev.nickname || ""
-      ).trim();
+      );
       if (n) return n;
     }
   } catch (_) {}
   // 兜底：getUserName 返回昵称才用（过滤 wxid 这类 ID 串）
   try {
     if (typeof s.getUserName === "function") {
-      const n = String(await s.getUserName() || "").trim();
+      const n = cleanNickname(await s.getUserName());
       if (n && !/^wxid/i.test(n)) return n;
     }
   } catch (_) {}
