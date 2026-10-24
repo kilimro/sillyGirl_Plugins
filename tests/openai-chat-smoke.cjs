@@ -16,9 +16,26 @@ global.fetch = async (input, options = {}) => {
   return new Response(body, { status, headers: { "content-type": "application/json" } });
 };
 
+const BucketStub = class {
+  constructor() {
+    this.map = new Map();
+  }
+  async get(key, fallback = "") {
+    return this.map.has(String(key)) ? this.map.get(String(key)) : fallback;
+  }
+  async set(key, value) {
+    this.map.set(String(key), value);
+    return true;
+  }
+  async delete(key) {
+    this.map.delete(String(key));
+    return true;
+  }
+};
+
 const originalLoad = Module._load;
 Module._load = function (request, parent, isMain) {
-  if (request === "sillygirl") return {};
+  if (request === "sillygirl") return { Bucket: BucketStub };
   return originalLoad.call(this, request, parent, isMain);
 };
 

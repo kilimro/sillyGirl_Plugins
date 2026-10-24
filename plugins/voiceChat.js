@@ -1,8 +1,8 @@
 // [title: 语音对话聊天]
 // [name: voiceChat]
-// [desc: 仅 Gewe 平台可用。收到语音消息自动转文字并接入 AI 对话（复刻 aiChat 核心逻辑）。语音转文字（STT）与 AI 对话各自独立配置模型，内置 DeepSeek/智谱GLM/Kimi/MiniMax/通义Qwen 提供商预设，思考模式默认 off 关闭（语音回复场景无需思考）。支持系统提示词变量、上下文记忆、同人冷却、群白名单与语音回复（reply_mode=voice/text/mix，mix 按语音概率随机混合语音与文字，更有真人感）。v2.1 起会话记忆统一走 mm_chat_history，与 aiChat/visionChat 共享上下文（发图识别后可语音追问图片内容）。]
+// [desc: 仅 Gewe 平台可用。收到语音消息自动转文字并接入 AI 对话（复刻 aiChat 核心逻辑）。语音转文字（STT）与 AI 对话各自独立配置模型，内置 DeepSeek/智谱GLM/Kimi/MiniMax/通义Qwen 提供商预设，思考模式默认 off 关闭（语音回复场景无需思考）。支持系统提示词变量、上下文记忆、同人冷却、群白名单与语音回复（reply_mode=voice/text/mix，mix 按语音概率随机混合语音与文字，更有真人感）。v2.1 起会话记忆统一走 mm_chat_history，与 aiChat/visionChat 共享上下文（发图识别后可语音追问图片内容）。v2.3 起工具统一由 aiToolCore 注册表提供（时间/天气/公网IP/Tavily 联网搜索），与 aiChat 共享工具配置。]
 // [author: Mianpro官方]
-// [version: v2.2.0]
+// [version: v2.3.0]
 // [rule: raw ^\[CQ:record[^\]]*\]$]
 // [status: true]
 // [admin: false]
@@ -11,18 +11,18 @@
 // [class: 大模型]
 // [icon: https://ecmb.bdimg.com/tam-ogel/-341441530_114552854_88_88.png]
 // [origin: 自定义]
-// [depe: ["./geweCore.js","./whisperCore.js","./openaiChatCore.js","./ttsCore.js"]]
+// [depe: ["./aiToolCore.js","./geweCore.js","./openaiChatCore.js","./ttsCore.js","./whisperCore.js"]]
 
 "use strict";
 const { sender: s, Bucket, plugin } = require("sillygirl");
 const geweCore = require("./geweCore.js");
 const whisper = require("./whisperCore.js");
 const ai = require("./openaiChatCore.js");
+const tools = require("./aiToolCore.js");
 const tts = require("./ttsCore.js");
 
 const COOLDOWN_BUCKET = "voice_chat_cooldown";
 const MAX_CONTENT_LEN = 1500;
-const MAX_TOOL_ROUNDS = 4;
 
 const form = new plugin.Form({
   // ===== 语音转文字（STT）=====
@@ -30,18 +30,12 @@ const form = new plugin.Form({
     .title("语音转文字 BaseURL")
     .description("OpenAI 兼容地址，如 https://api.openai.com/v1 或你的反代；留空则复用下方对话 BaseURL")
     .default(""),
-  stt_api_key: plugin.Form.string()
-    .title("语音转文字 API Key")
-    .description("留空则复用下方对话 API Key")
-    .default(""),
+  stt_api_key: plugin.Form.string().title("语音转文字 API Key").description("留空则复用下方对话 API Key").default(""),
   stt_model: plugin.Form.string()
     .title("语音转文字模型")
     .description("whisper 系列，如 whisper-1")
     .default("whisper-1"),
-  stt_language: plugin.Form.string()
-    .title("识别语言")
-    .description("留空自动检测，中文可填 zh")
-    .default(""),
+  stt_language: plugin.Form.string().title("识别语言").description("留空自动检测，中文可填 zh").default(""),
   // ===== AI 对话（chat）=====
   provider: plugin.Form.string()
     .title("大模型提供商")
@@ -51,7 +45,9 @@ const form = new plugin.Form({
     .default("openai"),
   base_url: plugin.Form.string()
     .title("对话 BaseURL")
-    .description("OpenAI 兼容地址，如 https://api.openai.com/v1 或你的反代；留空则按提供商自动填充；不需要写 /chat/completions 后缀")
+    .description(
+      "OpenAI 兼容地址，如 https://api.openai.com/v1 或你的反代；留空则按提供商自动填充；不需要写 /chat/completions 后缀",
+    )
     .default(""),
   api_key: plugin.Form.string().title("对话 API Key").default("").required(),
   model: plugin.Form.string()
@@ -82,9 +78,16 @@ const form = new plugin.Form({
     .max(50)
     .default(10),
   enable_tools: plugin.Form.boolean()
-    .title("启用内置工具（时间/天气/公网IP）")
-    .description("开启后 AI 可主动调用工具回答“几点了”“北京天气”“服务器 IP”这类问题")
+    .title("启用工具（时间/天气/公网IP/联网搜索）")
+    .description("开启后 AI 可主动调用工具回答“几点了”“北京天气”“服务器 IP”以及需要实时联网检索的问题")
     .default(true),
+  tavily_api_key: plugin.Form.string()
+    .title("Tavily 联网搜索 Key（可选）")
+    .description(
+      "配置后解锁 search_web 实时联网搜索；填一次会被 aiToolCore 持久化，与 aiChat 共享。留空则仅使用本地工具",
+    )
+    .format("password")
+    .default(""),
   temperature: plugin.Form.number().title("Temperature").min(0).max(2).default(0.8),
   max_tokens: plugin.Form.integer().title("单次回复最大 Token").min(64).max(4096).default(800),
   timeout: plugin.Form.integer().title("请求超时毫秒").min(5000).max(180000).default(60000),
@@ -104,7 +107,9 @@ const form = new plugin.Form({
   // ===== 语音回复（TTS）=====
   reply_mode: plugin.Form.string()
     .title("回复模式")
-    .description("text=文字回复（默认）；voice=全部语音回复（需配置下面的 TTS）；mix=随机混合，按语音概率一会发语音一会发文字，更有真人感")
+    .description(
+      "text=文字回复（默认）；voice=全部语音回复（需配置下面的 TTS）；mix=随机混合，按语音概率一会发语音一会发文字，更有真人感",
+    )
     .default("text"),
   voice_probability: plugin.Form.number()
     .title("语音回复概率（mix 模式）")
@@ -212,135 +217,18 @@ function renderPrompt(template, vars) {
   });
 }
 
-// ===== 工具注册表（OpenAI function calling，复刻 aiChat）=====
-const TOOLS = [
-  {
-    type: "function",
-    function: {
-      name: "get_current_time",
-      description: "获取机器人所在服务器的当前日期与时间（Asia/Shanghai 时区）",
-      parameters: { type: "object", properties: {}, required: [] },
-    },
-    async execute() {
-      const now = new Date();
-      const weekdays = ["日", "一", "二", "三", "四", "五", "六"];
-      return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")} 星期${weekdays[now.getDay()]} ${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}:${String(now.getSeconds()).padStart(2, "0")}`;
-    },
-  },
-  {
-    type: "function",
-    function: {
-      name: "get_weather",
-      description: "查询指定城市的实时天气（数据来自 wttr.in）",
-      parameters: {
-        type: "object",
-        properties: {
-          city: { type: "string", description: "城市名，例如：北京、上海、深圳" },
-        },
-        required: ["city"],
-      },
-    },
-    async execute(args) {
-      const city = encodeURIComponent(String(args.city || "").trim());
-      if (!city) throw new Error("city 为空");
-      const res = await fetch(`https://wttr.in/${city}?format=j1&lang=zh`, {
-        signal: AbortSignal.timeout(10000),
-        headers: { "user-agent": "curl/8.0" },
-      });
-      if (!res.ok) throw new Error(`wttr.in HTTP ${res.status}`);
-      const data = await res.json();
-      const cur = data?.current_condition?.[0];
-      if (!cur) throw new Error("天气接口未返回数据");
-      const desc = cur.lang_zh?.[0]?.value || cur.weatherDesc?.[0]?.value || "";
-      return `${args.city} 当前${desc}，气温 ${cur.temp_C}°C（体感 ${cur.FeelsLikeC}°C），湿度 ${cur.humidity}%，风 ${cur.windspeedKmph}km/h`;
-    },
-  },
-  {
-    type: "function",
-    function: {
-      name: "get_public_ip",
-      description: "查询机器人所在服务器的公网出口 IP（用于排查网络/登录问题）",
-      parameters: { type: "object", properties: {}, required: [] },
-    },
-    async execute() {
-      const res = await fetch("https://api.ipify.org", { signal: AbortSignal.timeout(8000) });
-      if (!res.ok) throw new Error(`ipify HTTP ${res.status}`);
-      return await res.text();
-    },
-  },
-];
-
-const toolByName = new Map(TOOLS.map((t) => [t.function.name, t]));
-
-async function runTool(call) {
-  const name = call?.function?.name;
-  const tool = toolByName.get(name);
-  if (!tool) return `未知工具：${name}`;
-  let args = {};
-  try {
-    args = JSON.parse(call.function.arguments || "{}");
-  } catch (_) {
-    return `工具参数 JSON 解析失败：${call.function.arguments}`;
-  }
-  try {
-    return await tool.execute(args);
-  } catch (error) {
-    return `工具 ${name} 执行失败：${error?.message || error}`;
-  }
-}
-
-// 解析后的对话配置（provider 预设 + 手动覆盖），供 chatWithTools 使用
+// 工具统一由 aiToolCore 注册表提供（时间/天气/公网IP/联网搜索），多轮循环复用 tools.chatLoop
+// 解析后的对话配置（provider 预设 + 手动覆盖）
 let resolvedChat = {};
-
-async function chatWithTools(messages) {
-  const baseOptions = {
-    baseUrl: resolvedChat.baseUrl,
-    apiKey: resolvedChat.apiKey,
-    model: resolvedChat.model,
-    provider: resolvedChat.provider,
-    thinking: resolvedChat.thinking,
-    temperature: cfg.temperature,
-    maxTokens: cfg.max_tokens,
-    timeout: cfg.timeout,
-  };
-  const useTools = Boolean(cfg.enable_tools);
-  const send = (msgs) =>
-    ai.chat({
-      ...baseOptions,
-      messages: msgs,
-      tools: useTools ? TOOLS : undefined,
-    });
-
-  let current = messages.slice();
-  let last = await send(current);
-  for (let round = 0; round < MAX_TOOL_ROUNDS && last.toolCalls?.length; round += 1) {
-    // 思考模型（DeepSeek 等）要求 assistant 消息必须完整回传 reasoning_content，否则 400
-    current.push({
-      role: "assistant",
-      content: last.content || "",
-      tool_calls: last.toolCalls,
-      reasoning_content: last.reasoningContent || undefined,
-    });
-    for (const call of last.toolCalls) {
-      const result = await runTool(call);
-      current.push({
-        role: "tool",
-        tool_call_id: call.id,
-        name: call.function?.name || "unknown",
-        content: String(result),
-      });
-    }
-    last = await send(current);
-  }
-  return last;
-}
 
 let cfg = {};
 
 async function main() {
   cfg = (await form.get()) || {};
   // 模型配置解析：provider 预设兜底 + 手动覆盖
-  const providerKey = String(cfg.provider || "openai").toLowerCase().trim();
+  const providerKey = String(cfg.provider || "openai")
+    .toLowerCase()
+    .trim();
   resolvedChat = {
     baseUrl: String(cfg.base_url || "").trim() || ai.getProviderBaseUrl(providerKey),
     apiKey: String(cfg.api_key || "").trim(),
@@ -348,6 +236,8 @@ async function main() {
     provider: providerKey,
     thinking: String(cfg.thinking || "off").toLowerCase(),
   };
+  // 工具配置注入（Tavily Key 持久化到 aiToolCore，与 aiChat 共享）
+  await tools.configure({ tavilyApiKey: cfg.tavily_api_key });
   const platform = String((await s.getPlatform()) || "").toLowerCase();
   // 仅 Gewe 生效：语音扩展 CQ 只有 Gewe 适配器输出
   if (platform !== "gewe") return;
@@ -418,7 +308,21 @@ async function main() {
     const history = await ai.loadHistory(key);
     const systemPrompt = renderPrompt(cfg.system_prompt, systemVars);
     const messages = ai.buildMessages(systemPrompt, history, text);
-    const result = await chatWithTools(messages);
+    const result = await tools.chatLoop(
+      ai,
+      {
+        baseUrl: resolvedChat.baseUrl,
+        apiKey: resolvedChat.apiKey,
+        model: resolvedChat.model,
+        provider: resolvedChat.provider,
+        thinking: resolvedChat.thinking,
+        temperature: cfg.temperature,
+        maxTokens: cfg.max_tokens,
+        timeout: cfg.timeout,
+        enabled: cfg.enable_tools,
+      },
+      messages,
+    );
     const replyText = clampReply(result.content);
     if (!replyText) return;
     // 展示思考过程（仅文字回复模式；语音回复读正式回答，不带思考）

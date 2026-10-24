@@ -12,7 +12,7 @@
 // [class: 工具]
 // [icon: https://api.920pdd.com/favicon.ico]
 // [origin: 自定义]
-// [depe: ["./openaiChatCore.js","./aiDrawCore.js"]]
+// [depe: ["./aiDrawCore.js","./openaiChatCore.js"]]
 
 "use strict";
 const { sender: s, Bucket, plugin } = require("sillygirl");

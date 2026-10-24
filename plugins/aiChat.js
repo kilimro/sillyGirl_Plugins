@@ -1,8 +1,8 @@
 // [title: AI 聊天助手]
 // [name: aiChat]
-// [desc: 接入任意 OpenAI 兼容接口的 AI 助手，内置 DeepSeek/智谱GLM/Kimi/MiniMax/通义Qwen 提供商预设。触发词：起床了绵绵 / mark / 小助手，消息任意位置出现即触发（大小写不敏感），其他命令走原插件不抢。支持 BaseURL/Key/模型/长系统提示词（变量插值）/上下文轮数/工具调用/思考模式控制（thinking 默认 off 关闭，语音回复场景无需思考）。v3.1 起会话记忆统一走 mm_chat_history，与 voiceChat/visionChat 共享上下文（发图识别后可直接追问图片内容）。]
+// [desc: 接入任意 OpenAI 兼容接口的 AI 助手，内置 DeepSeek/智谱GLM/Kimi/MiniMax/通义Qwen 提供商预设。触发词：起床了绵绵 / mark / 小助手，消息任意位置出现即触发（大小写不敏感），其他命令走原插件不抢。支持 BaseURL/Key/模型/长系统提示词（变量插值）/上下文轮数/工具调用/思考模式控制（thinking 默认 off 关闭，语音回复场景无需思考）。v3.1 起会话记忆统一走 mm_chat_history，与 voiceChat/visionChat 共享上下文（发图识别后可直接追问图片内容）。v3.4 起工具统一由 aiToolCore 注册表提供（时间/天气/公网IP/Tavily 联网搜索），新增工具无需改本插件。]
 // [author: Mianpro官方]
-// [version: v3.3.1]
+// [version: v3.4.0]
 // [rule: 起床了绵绵|mark|Mark|小助手]
 // [status: true]
 // [admin: false]
@@ -11,16 +11,16 @@
 // [class: 大模型]
 // [icon: https://ecmb.bdimg.com/tam-ogel/-341441530_114552854_88_88.png]
 // [origin: 自定义]
-// [depe: ["./geweCore.js","./memoryCore.js","./openaiChatCore.js","./ttsCore.js"]]
+// [depe: ["./aiToolCore.js","./geweCore.js","./memoryCore.js","./openaiChatCore.js","./ttsCore.js"]]
 
-const { sender: s, Bucket, plugin } = require("sillygirl");
+const { sender: s, plugin } = require("sillygirl");
 const ai = require("./openaiChatCore.js");
+const tools = require("./aiToolCore.js");
 const mem = require("./memoryCore.js");
 const tts = require("./ttsCore.js");
 const geweCore = require("./geweCore.js");
 
 const MAX_CONTENT_LEN = 1500;
-const MAX_TOOL_ROUNDS = 4;
 
 // 触发词（任意位置命中）：起床了绵绵 / mark(不区分大小写) / 小助手
 const TRIGGER_RE = /起床了绵绵|mark|小助手/i;
@@ -34,7 +34,9 @@ const form = new plugin.Form({
     .default("openai"),
   base_url: plugin.Form.string()
     .title("OpenAI 兼容 BaseURL")
-    .description("例如 https://api.openai.com/v1，或第三方中转/自建地址；留空则按提供商自动填充；不需要写 /chat/completions 后缀")
+    .description(
+      "例如 https://api.openai.com/v1，或第三方中转/自建地址；留空则按提供商自动填充；不需要写 /chat/completions 后缀",
+    )
     .default(""),
   api_key: plugin.Form.string().title("API Key").default("").required(),
   model: plugin.Form.string()
@@ -65,9 +67,16 @@ const form = new plugin.Form({
     .max(50)
     .default(10),
   enable_tools: plugin.Form.boolean()
-    .title("启用内置工具（时间/天气/公网IP）")
-    .description("开启后 AI 可主动调用工具回答“几点了”“北京天气”“服务器 IP”这类问题")
+    .title("启用工具（时间/天气/公网IP/联网搜索）")
+    .description("开启后 AI 可主动调用工具回答“几点了”“北京天气”“服务器 IP”以及需要实时联网检索的问题")
     .default(true),
+  tavily_api_key: plugin.Form.string()
+    .title("Tavily 联网搜索 Key（可选）")
+    .description(
+      "配置后解锁 search_web 实时联网搜索；填一次会被 aiToolCore 持久化，voiceChat 等其他 AI 插件共享。留空则仅使用本地工具",
+    )
+    .format("password")
+    .default(""),
   enable_memory: plugin.Form.boolean()
     .title("启用长期记忆（自动记住用户个人信息）")
     .description(
@@ -181,128 +190,9 @@ function renderPrompt(template, vars) {
   });
 }
 
-// ===== 工具注册表（OpenAI function calling）=====
-const TOOLS = [
-  {
-    type: "function",
-    function: {
-      name: "get_current_time",
-      description: "获取机器人所在服务器的当前日期与时间（Asia/Shanghai 时区）",
-      parameters: { type: "object", properties: {}, required: [] },
-    },
-    async execute() {
-      const now = new Date();
-      const weekdays = ["日", "一", "二", "三", "四", "五", "六"];
-      return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")} 星期${weekdays[now.getDay()]} ${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}:${String(now.getSeconds()).padStart(2, "0")}`;
-    },
-  },
-  {
-    type: "function",
-    function: {
-      name: "get_weather",
-      description: "查询指定城市的实时天气（数据来自 wttr.in）",
-      parameters: {
-        type: "object",
-        properties: {
-          city: { type: "string", description: "城市名，例如：北京、上海、深圳" },
-        },
-        required: ["city"],
-      },
-    },
-    async execute(args) {
-      const city = encodeURIComponent(String(args.city || "").trim());
-      if (!city) throw new Error("city 为空");
-      const res = await fetch(`https://wttr.in/${city}?format=j1&lang=zh`, {
-        signal: AbortSignal.timeout(10000),
-        headers: { "user-agent": "curl/8.0" },
-      });
-      if (!res.ok) throw new Error(`wttr.in HTTP ${res.status}`);
-      const data = await res.json();
-      const cur = data?.current_condition?.[0];
-      if (!cur) throw new Error("天气接口未返回数据");
-      const desc = cur.lang_zh?.[0]?.value || cur.weatherDesc?.[0]?.value || "";
-      return `${args.city} 当前${desc}，气温 ${cur.temp_C}°C（体感 ${cur.FeelsLikeC}°C），湿度 ${cur.humidity}%，风 ${cur.windspeedKmph}km/h`;
-    },
-  },
-  {
-    type: "function",
-    function: {
-      name: "get_public_ip",
-      description: "查询机器人所在服务器的公网出口 IP（用于排查网络/登录问题）",
-      parameters: { type: "object", properties: {}, required: [] },
-    },
-    async execute() {
-      const res = await fetch("https://api.ipify.org", { signal: AbortSignal.timeout(8000) });
-      if (!res.ok) throw new Error(`ipify HTTP ${res.status}`);
-      return await res.text();
-    },
-  },
-];
-
-const toolByName = new Map(TOOLS.map((t) => [t.function.name, t]));
-
-async function runTool(call) {
-  const name = call?.function?.name;
-  const tool = toolByName.get(name);
-  if (!tool) return `未知工具：${name}`;
-  let args = {};
-  try {
-    args = JSON.parse(call.function.arguments || "{}");
-  } catch (_) {
-    return `工具参数 JSON 解析失败：${call.function.arguments}`;
-  }
-  try {
-    return await tool.execute(args);
-  } catch (error) {
-    return `工具 ${name} 执行失败：${error?.message || error}`;
-  }
-}
-
-// 解析后的对话配置（provider 预设 + 手动覆盖），供 chatWithTools 使用
+// 工具统一由 aiToolCore 注册表提供（时间/天气/公网IP/联网搜索），多轮循环复用 tools.chatLoop
+// 解析后的对话配置（provider 预设 + 手动覆盖）
 let resolvedChat = {};
-
-async function chatWithTools(messages) {
-  const baseOptions = {
-    baseUrl: resolvedChat.baseUrl,
-    apiKey: resolvedChat.apiKey,
-    model: resolvedChat.model,
-    provider: resolvedChat.provider,
-    thinking: resolvedChat.thinking,
-    temperature: cfg.temperature,
-    maxTokens: cfg.max_tokens,
-    timeout: cfg.timeout,
-  };
-  const useTools = Boolean(cfg.enable_tools);
-  const send = (msgs) =>
-    ai.chat({
-      ...baseOptions,
-      messages: msgs,
-      tools: useTools ? TOOLS : undefined,
-    });
-
-  let current = messages.slice();
-  let last = await send(current);
-  for (let round = 0; round < MAX_TOOL_ROUNDS && last.toolCalls?.length; round += 1) {
-    // 思考模型（DeepSeek 等）要求 assistant 消息必须完整回传 reasoning_content，否则 400
-    current.push({
-      role: "assistant",
-      content: last.content || "",
-      tool_calls: last.toolCalls,
-      reasoning_content: last.reasoningContent || undefined,
-    });
-    for (const call of last.toolCalls) {
-      const result = await runTool(call);
-      current.push({
-        role: "tool",
-        tool_call_id: call.id,
-        name: call.function?.name || "unknown",
-        content: String(result),
-      });
-    }
-    last = await send(current);
-  }
-  return last;
-}
 
 async function handleStatus(key) {
   const history = await ai.loadHistory(key);
@@ -313,7 +203,16 @@ async function handleStatus(key) {
       `提供商：${String(cfg.provider || "openai")}（模型：${resolvedChat.model || cfg.model}）`,
       `思考模式：${String(cfg.thinking || "off")}（${cfg.show_thinking ? "展示思考" : "隐藏思考"}）`,
       `上下文轮数：${cfg.context_rounds}（当前已存 ${pairs} 轮）`,
-      `内置工具：${cfg.enable_tools ? "开启（" + TOOLS.map((t) => t.function.name).join("、") + "）" : "关闭"}`,
+      `可用工具：${
+        cfg.enable_tools
+          ? "开启（" +
+            tools
+              .listTools()
+              .map((t) => t.function.name)
+              .join("、") +
+            "）"
+          : "关闭"
+      }`,
       "发送「ai清空」可清除你的记忆",
     ].join("\n"),
   );
@@ -329,7 +228,9 @@ let cfg = {};
 async function main() {
   cfg = (await form.get()) || {};
   // 模型配置解析：provider 预设兜底 + 手动覆盖
-  const providerKey = String(cfg.provider || "openai").toLowerCase().trim();
+  const providerKey = String(cfg.provider || "openai")
+    .toLowerCase()
+    .trim();
   resolvedChat = {
     baseUrl: String(cfg.base_url || "").trim() || ai.getProviderBaseUrl(providerKey),
     apiKey: String(cfg.api_key || "").trim(),
@@ -337,6 +238,8 @@ async function main() {
     provider: providerKey,
     thinking: String(cfg.thinking || "off").toLowerCase(),
   };
+  // 工具配置注入（Tavily Key 持久化到 aiToolCore，跨插件共享）
+  await tools.configure({ tavilyApiKey: cfg.tavily_api_key });
   const rawContent = String((await s.getMsg()) || "").trim();
   if (!rawContent) return;
 
@@ -346,7 +249,10 @@ async function main() {
   const privateChat = isPrivateChat(chatId, userId);
 
   // rule 已过滤：能走到这里说明消息中出现了触发词（起床了绵绵/mark/小助手），剥掉触发词后交给模型
-  let promptText = rawContent.replace(TRIGGER_RE, "").replace(/^[，,、:：\s]+|[，,、:：\s]+$/g, "").trim();
+  let promptText = rawContent
+    .replace(TRIGGER_RE, "")
+    .replace(/^[，,、:：\s]+|[，,、:：\s]+$/g, "")
+    .trim();
 
   // 管理指令
   if (promptText === "状态") return handleStatus(key);
@@ -394,7 +300,21 @@ async function main() {
       finalSystemPrompt += mem.formatContext(memList);
     }
     const messages = ai.buildMessages(finalSystemPrompt, history, promptText);
-    const result = await chatWithTools(messages);
+    const result = await tools.chatLoop(
+      ai,
+      {
+        baseUrl: resolvedChat.baseUrl,
+        apiKey: resolvedChat.apiKey,
+        model: resolvedChat.model,
+        provider: resolvedChat.provider,
+        thinking: resolvedChat.thinking,
+        temperature: cfg.temperature,
+        maxTokens: cfg.max_tokens,
+        timeout: cfg.timeout,
+        enabled: cfg.enable_tools,
+      },
+      messages,
+    );
     const replyText = clampReply(result.content);
     if (!replyText) return;
     // 展示思考过程（仅文字回复模式；语音回复读正式回答，不带思考）
