@@ -1,9 +1,9 @@
 // [title: AI 聊天助手]
 // [name: aiChat]
-// [desc: 接入任意 OpenAI 兼容接口的 AI 助手，内置 DeepSeek/智谱GLM/Kimi/MiniMax/通义Qwen 提供商预设。消息必须以 ai/AI/机器人/小助手 开头才会触发，其他命令走原插件不抢。支持 BaseURL/Key/模型/长系统提示词（变量插值）/上下文轮数/工具调用/思考模式控制（thinking 默认 off 关闭，语音回复场景无需思考）。v3.1 起会话记忆统一走 mm_chat_history，与 voiceChat/visionChat 共享上下文（发图识别后可直接追问图片内容）。]
+// [desc: 接入任意 OpenAI 兼容接口的 AI 助手，内置 DeepSeek/智谱GLM/Kimi/MiniMax/通义Qwen 提供商预设。触发词：起床了绵绵 / mark / 小助手，消息任意位置出现即触发（大小写不敏感），其他命令走原插件不抢。支持 BaseURL/Key/模型/长系统提示词（变量插值）/上下文轮数/工具调用/思考模式控制（thinking 默认 off 关闭，语音回复场景无需思考）。v3.1 起会话记忆统一走 mm_chat_history，与 voiceChat/visionChat 共享上下文（发图识别后可直接追问图片内容）。]
 // [author: Mianpro官方]
-// [version: v3.1.0]
-// [rule: ^(ai|起床了绵绵|Ai|机器人|小助手)[，,、:：\s]*[\s\S]*$]
+// [version: v3.3.0]
+// [rule: (?i)(起床了绵绵|\bmark\b|小助手)]
 // [status: true]
 // [admin: false]
 // [public: true]
@@ -22,8 +22,8 @@ const geweCore = require("./geweCore.js");
 const MAX_CONTENT_LEN = 1500;
 const MAX_TOOL_ROUNDS = 4;
 
-// 剥掉消息开头的触发词（ai/AI/机器人/小助手）和紧跟的分隔符，返回真正给大模型的文本
-const PREFIX_RE = /^\s*(?:ai|起床了绵绵|Ai|机器人|小助手)[，,、:：\s]*/;
+// 触发词（任意位置命中）：起床了绵绵 / mark / 小助手；大小写不敏感；mark 加词边界避免 market/remark 误触发
+const TRIGGER_RE = /起床了绵绵|\bmark\b|小助手/i;
 
 const form = new plugin.Form({
   provider: plugin.Form.string()
@@ -345,8 +345,8 @@ async function main() {
   const chatId = String((await s.getChatId()) || "");
   const privateChat = isPrivateChat(chatId, userId);
 
-  // rule 已经过滤了：能走到这里说明消息一定是 ai/AI/机器人/小助手 开头
-  let promptText = rawContent.replace(PREFIX_RE, "").trim();
+  // rule 已过滤：能走到这里说明消息中出现了触发词（起床了绵绵/mark/小助手），剥掉触发词后交给模型
+  let promptText = rawContent.replace(TRIGGER_RE, "").replace(/^[，,、:：\s]+|[，,、:：\s]+$/g, "").trim();
 
   // 管理指令
   if (promptText === "状态") return handleStatus(key);
