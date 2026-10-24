@@ -1,8 +1,8 @@
 // [title: AI 聊天助手]
 // [name: aiChat]
-// [desc: 接入任意 OpenAI 兼容接口的 AI 助手，内置 DeepSeek/智谱GLM/Kimi/MiniMax/通义Qwen 提供商预设。消息必须以 ai/AI/机器人/小助手 开头才会触发，其他命令走原插件不抢。支持 BaseURL/Key/模型/长系统提示词（变量插值）/上下文轮数/工具调用/思考模式控制（thinking 默认 off 关闭，语音回复场景无需思考）。v3.1 起会话记忆统一走 mm_chat_history，与 voiceChat/visionChat 共享上下文（发图识别后可直接追问图片内容）。]
+// [desc: 接入任意 OpenAI 兼容接口的 AI 助手，内置 DeepSeek/智谱GLM/Kimi/MiniMax/通义Qwen 提供商预设。消息必须以 ai/AI/机器人/小助手 开头才会触发，其他命令走原插件不抢。支持 BaseURL/Key/模型/长系统提示词（变量插值）/上下文轮数/工具调用/思考模式控制（thinking 默认 off 关闭，语音回复场景无需思考）。v3.2 起支持同目录 aiChatCustomTools.js 自定义工具（JS 代码型，随 enable_tools 开关一并控制）。v3.1 起会话记忆统一走 mm_chat_history，与 voiceChat/visionChat 共享上下文（发图识别后可直接追问图片内容）。]
 // [author: Mianpro官方]
-// [version: v3.1.0]
+// [version: v3.2.0]
 // [rule: ^(ai|起床了绵绵|Ai|机器人|小助手)[，,、:：\s]*[\s\S]*$]
 // [status: true]
 // [admin: false]
@@ -65,8 +65,8 @@ const form = new plugin.Form({
     .max(50)
     .default(10),
   enable_tools: plugin.Form.boolean()
-    .title("启用内置工具（时间/天气/公网IP）")
-    .description("开启后 AI 可主动调用工具回答“几点了”“北京天气”“服务器 IP”这类问题")
+    .title("启用工具（内置+自定义）")
+    .description("开启后 AI 可主动调用工具回答“几点了”“北京天气”“服务器 IP”等问题；同目录的 aiChatCustomTools.js 自定义工具也随此开关一并生效")
     .default(true),
   enable_memory: plugin.Form.boolean()
     .title("启用长期记忆（自动记住用户个人信息）")
@@ -239,7 +239,17 @@ const TOOLS = [
   },
 ];
 
-const toolByName = new Map(TOOLS.map((t) => [t.function.name, t]));
+// ===== 用户自定义工具（aiChatCustomTools.js，同目录，JS 代码型，随 enable_tools 开关一并控制）=====
+let CUSTOM_TOOLS = [];
+try {
+  const custom = require("./aiChatCustomTools.js");
+  if (Array.isArray(custom)) CUSTOM_TOOLS = custom.filter((t) => t && t.function && typeof t.execute === "function");
+} catch (_) {
+  // 文件不存在/语法错误/导出格式不对时忽略，仅用内置工具
+}
+
+const ALL_TOOLS = TOOLS.concat(CUSTOM_TOOLS);
+const toolByName = new Map(ALL_TOOLS.map((t) => [t.function.name, t]));
 
 async function runTool(call) {
   const name = call?.function?.name;
@@ -277,7 +287,7 @@ async function chatWithTools(messages) {
     ai.chat({
       ...baseOptions,
       messages: msgs,
-      tools: useTools ? TOOLS : undefined,
+      tools: useTools ? ALL_TOOLS : undefined,
     });
 
   let current = messages.slice();
@@ -313,7 +323,7 @@ async function handleStatus(key) {
       `提供商：${String(cfg.provider || "openai")}（模型：${resolvedChat.model || cfg.model}）`,
       `思考模式：${String(cfg.thinking || "off")}（${cfg.show_thinking ? "展示思考" : "隐藏思考"}）`,
       `上下文轮数：${cfg.context_rounds}（当前已存 ${pairs} 轮）`,
-      `内置工具：${cfg.enable_tools ? "开启（" + TOOLS.map((t) => t.function.name).join("、") + "）" : "关闭"}`,
+      `工具：${cfg.enable_tools ? "开启（" + ALL_TOOLS.map((t) => t.function.name).join("、") + "）" : "关闭"}`,
       "发送「ai清空」可清除你的记忆",
     ].join("\n"),
   );
