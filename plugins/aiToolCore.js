@@ -2,7 +2,7 @@
 // [name: aiToolCore]
 // [desc: OpenAI function calling 工具注册表与多轮工具循环公共能力。内置时间/天气/公网IP 与 Tavily 联网搜索(search_web)，aiChat/voiceChat 等 AI 插件统一从这里取工具、复用同一套多轮回传，新增工具只需 register 一条，无需改动各对话插件。配置（如 Tavily Key）通过 configure 注入并持久化到 Bucket，跨插件共享。]
 // [author: Mianpro官方]
-// [version: v1.1.6]
+// [version: v1.1.7]
 // [status: true]
 // [admin: false]
 // [public: true]
@@ -94,6 +94,10 @@ function parseReminderCommand(raw) {
   };
 }
 
+// 发送去重标记 Bucket：同一任务只发一次（顶层拦截 + 宿主 interceptor 双路只发其一）
+const dedupStore = new Bucket("ai_reminder_dedup");
+const DEDUP_TTL_MS = 5 * 60 * 1000;
+
 async function handleReminderSender(sendFn, deleteFn) {
   let raw = "";
   try {
@@ -101,6 +105,14 @@ async function handleReminderSender(sendFn, deleteFn) {
   } catch (_) {}
   const meta = parseReminderCommand(raw);
   if (!meta || !meta.content) return false;
+  // 去重：同一任务（taskId）只发送一次；周期任务按 taskId 一次注册窗口内也只发一次
+  const dedupKey = `sent:${meta.taskId}`;
+  try {
+    const prev = await dedupStore.get(dedupKey, 0);
+    const nowTs = Date.now();
+    if (Number(prev) && nowTs - Number(prev) < DEDUP_TTL_MS) return true;
+    await dedupStore.set(dedupKey, nowTs);
+  } catch (_) {}
   try {
     await sendFn(meta.content);
   } catch (e) {
@@ -484,9 +496,18 @@ async function chatLoop(ai, opts = {}, messages) {
   return last;
 }
 
-// 说明：提醒发送统一由宿主插件（aiChat/voiceChat）main() 开头的 reminderInterceptor() 承担——
-// create_reminder 写入的 scripts 始终指向宿主插件 UUID，原生任务到点触发宿主 → 宿主拦截并回复。
-// 本模块顶层不再自行拦截，避免「被 require 时拦截一次 + 宿主 main() 再拦截一次」导致重复发送。
+// 说明：提醒发送由两层协同——① 宿主插件（aiChat/voiceChat）main() 开头的 reminderInterceptor()；
+// ② 本模块被 require 时（任何宿主 Handle 都会 require 本模块）的顶层拦截。两者都调用
+// handleReminderSender 且带去重标记（ai_reminder_dedup），保证只发一次、不重复。
+// 即使宿主插件是旧版（无 interceptor），任务到点触发宿主时顶层拦截仍能把提醒发出去。
+(async () => {
+  try {
+    await handleReminderSender(
+      (text) => s.reply(text),
+      (id) => new Bucket(TASKS_BUCKET).set(id, ""),
+    );
+  } catch (_) {}
+})();
 
 module.exports = {
   configure,
