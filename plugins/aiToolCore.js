@@ -377,7 +377,7 @@ register({
     // 任务到点要触发哪个插件来发提醒：优先取宿主插件在 main() 里注入的 uuid（可靠）；
     // SELF_UUID 仅在模块顶层能访问全局 uuid 时兜底；都拿不到就拒绝创建，避免建出发不出的哑任务
     const scriptUuid = String((sender && sender.uuid) || SELF_UUID || "").trim();
-    if (!scriptUuid) throw new Error("提醒发送组件未就绪（拿不到宿主插件 UUID），请更新 aiChat/voiceChat 插件后重试");
+    if (!scriptUuid) throw new Error("提醒发送组件未就绪：宿主插件未注入 UUID（请确认本地 aiChat≥v3.5.2 / voiceChat≥v2.3.2，且未被旧版本覆盖），更新并重启后重试");
     const once = !schedule;
     const taskId = (typeof genUuid === "function" && genUuid()) || `r${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
     // 发送目标 = 下命令的会话：群里下的发群里，私聊下的发私聊（用户未加好友也能收到）
