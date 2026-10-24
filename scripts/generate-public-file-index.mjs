@@ -93,9 +93,6 @@ for (const pluginFile of pluginFiles) {
   const relativePath = path.relative(root, pluginFile).replaceAll("\\", "/");
   const content = await readFile(pluginFile, "utf8");
   const meta = parseMeta(content);
-  // 跳过没有插件元数据（[name]/[title] 注释）的文件，如 aiChatCustomTools.js 这类
-  // 供插件加载的用户自定义资源/示例文件，避免在插件市场显示为无效插件
-  if (!meta.name && !meta.title) continue;
   const pluginName = path.basename(pluginFile, path.extname(pluginFile));
   const name = meta.name || pluginName;
   const author = meta.author || repo.split("/")[0];
