@@ -88,7 +88,7 @@
     "name": "aiToolCore",
     "title": "AI 工具生态公共模块",
     "author": "Mianpro官方",
-    "version": "v1.1.1",
+    "version": "v1.1.2",
     "desc": "OpenAI function calling 工具注册表与多轮工具循环公共能力。内置时间/天气/公网IP 与 Tavily 联网搜索(search_web)，aiChat/voiceChat 等 AI 插件统一从这里取工具、复用同一套多轮回传，新增工具只需 register 一条，无需改动各对话插件。配置（如 Tavily Key）通过 configure 注入并持久化到 Bucket，跨插件共享。",
     "icon": "https://wiki.920pdd.com/uploads/avatars/2024/12/01//fwUbpklrVjbmOWJz.png",
     "class": "模块",

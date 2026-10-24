@@ -2,7 +2,7 @@
 // [name: aiToolCore]
 // [desc: OpenAI function calling 工具注册表与多轮工具循环公共能力。内置时间/天气/公网IP 与 Tavily 联网搜索(search_web)，aiChat/voiceChat 等 AI 插件统一从这里取工具、复用同一套多轮回传，新增工具只需 register 一条，无需改动各对话插件。配置（如 Tavily Key）通过 configure 注入并持久化到 Bucket，跨插件共享。]
 // [author: Mianpro官方]
-// [version: v1.1.1]
+// [version: v1.1.2]
 // [status: true]
 // [admin: false]
 // [public: true]
@@ -376,6 +376,8 @@ register({
     if (!sender.platform || !sender.userId) throw new Error("无法确定发送对象上下文");
     const once = !schedule;
     const taskId = (typeof genUuid === "function" && genUuid()) || `r${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+    // 发送目标 = 下命令的会话：群里下的发群里，私聊下的发私聊（用户未加好友也能收到）
+    const targetChatId = String(sender.chatId || sender.userId || "");
     const taskJson = {
       task_id: taskId,
       title: `提醒：${content.slice(0, 12)}`,
@@ -385,7 +387,7 @@ register({
           platform: String(sender.platform),
           bot_id: String(sender.botId || ""),
           user_id: String(sender.userId),
-          chat_id: String(sender.userId),
+          chat_id: targetChatId,
         },
       ],
       command: `__reminder__:${taskId}:${once ? "once" : "repeat"}:${content}`,
