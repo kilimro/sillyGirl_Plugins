@@ -2,7 +2,7 @@
 // [name: aiToolCore]
 // [desc: OpenAI function calling 工具注册表与多轮工具循环公共能力。内置时间/天气/公网IP 与 Tavily 联网搜索(search_web)，aiChat/voiceChat 等 AI 插件统一从这里取工具、复用同一套多轮回传，新增工具只需 register 一条，无需改动各对话插件。配置（如 Tavily Key）通过 configure 注入并持久化到 Bucket，跨插件共享。]
 // [author: Mianpro官方]
-// [version: v1.1.3]
+// [version: v1.1.4]
 // [status: true]
 // [admin: false]
 // [public: true]
@@ -450,17 +450,9 @@ async function chatLoop(ai, opts = {}, messages) {
   return last;
 }
 
-// 顶层提醒发送分支：本模块被原生任务以 FakerSender 上下文触发时（scripts=[SELF_UUID]），
-// 收到 "__reminder__:" 指令即直接回复内容并（一次性任务）注销任务；普通对话 require 时消息不含前缀，无副作用
-(async () => {
-  if (!SELF_UUID) return;
-  try {
-    await handleReminderSender(
-      (text) => s.reply(text),
-      (id) => new Bucket(TASKS_BUCKET).set(id, ""),
-    );
-  } catch (_) {}
-})();
+// 说明：提醒发送统一由宿主插件（aiChat/voiceChat）main() 开头的 reminderInterceptor() 承担——
+// create_reminder 写入的 scripts 始终指向宿主插件 UUID，原生任务到点触发宿主 → 宿主拦截并回复。
+// 本模块顶层不再自行拦截，避免「被 require 时拦截一次 + 宿主 main() 再拦截一次」导致重复发送。
 
 module.exports = {
   configure,
