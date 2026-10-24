@@ -2,7 +2,7 @@
 // [name: aiChat]
 // [desc: 接入任意 OpenAI 兼容接口的 AI 助手，内置 DeepSeek/智谱GLM/Kimi/MiniMax/通义Qwen 提供商预设。触发词：起床了绵绵 / mark / 小助手，消息任意位置出现即触发（大小写不敏感），其他命令走原插件不抢。支持 BaseURL/Key/模型/长系统提示词（变量插值）/上下文轮数/工具调用/思考模式控制（thinking 默认 off 关闭，语音回复场景无需思考）。v3.1 起会话记忆统一走 mm_chat_history，与 voiceChat/visionChat 共享上下文（发图识别后可直接追问图片内容）。v3.4 起工具统一由 aiToolCore 注册表提供（时间/天气/公网IP/Tavily 联网搜索），新增工具无需改本插件。]
 // [author: Mianpro官方]
-// [version: v3.5.0]
+// [version: v3.5.1]
 // [rule: 起床了绵绵|mark|Mark|小助手]
 // [status: true]
 // [admin: false]
@@ -13,7 +13,7 @@
 // [origin: 自定义]
 // [depe: ["./aiToolCore.js","./geweCore.js","./memoryCore.js","./openaiChatCore.js","./ttsCore.js"]]
 
-const { sender: s, plugin } = require("sillygirl");
+const { sender: s, plugin, Bucket } = require("sillygirl");
 const ai = require("./openaiChatCore.js");
 const tools = require("./aiToolCore.js");
 const mem = require("./memoryCore.js");
