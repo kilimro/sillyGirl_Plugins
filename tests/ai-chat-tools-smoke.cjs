@@ -72,6 +72,7 @@ const sender = {
   getMsg: async () => content,
   getUserId: async () => "fixture-user",
   getChatId: async () => "",
+  getBotId: async () => "",
   getPlatform: async () => "qq",
   getUserName: async () => "测试用户",
   isAdmin: async () => false,

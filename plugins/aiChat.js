@@ -2,7 +2,7 @@
 // [name: aiChat]
 // [desc: 接入任意 OpenAI 兼容接口的 AI 助手，内置 DeepSeek/智谱GLM/Kimi/MiniMax/通义Qwen 提供商预设。触发词：起床了绵绵 / mark / 小助手，消息任意位置出现即触发（大小写不敏感），其他命令走原插件不抢。支持 BaseURL/Key/模型/长系统提示词（变量插值）/上下文轮数/工具调用/思考模式控制（thinking 默认 off 关闭，语音回复场景无需思考）。v3.1 起会话记忆统一走 mm_chat_history，与 voiceChat/visionChat 共享上下文（发图识别后可直接追问图片内容）。v3.4 起工具统一由 aiToolCore 注册表提供（时间/天气/公网IP/Tavily 联网搜索），新增工具无需改本插件。]
 // [author: Mianpro官方]
-// [version: v3.4.1]
+// [version: v3.5.0]
 // [rule: 起床了绵绵|mark|Mark|小助手]
 // [status: true]
 // [admin: false]
@@ -223,6 +223,62 @@ async function handleClear(key) {
   return s.reply("已清除你的 AI 记忆");
 }
 
+// ===== 定时提醒管理（读写 sillyGirl 原生任务 Bucket）=====
+const TASKS_BUCKET = "tasks";
+
+async function listMyReminders(userId) {
+  const bucket = new Bucket(TASKS_BUCKET);
+  const all = (await bucket.getAll()) || {};
+  const mine = [];
+  for (const [id, raw] of Object.entries(all)) {
+    let t = {};
+    try {
+      t = JSON.parse(String(raw));
+    } catch (_) {
+      continue;
+    }
+    if (!String(t.command || "").startsWith("__reminder__:")) continue;
+    const sender = (t.senders || [])[0];
+    if (!sender || sender.user_id !== userId) continue;
+    mine.push({ id, ...t });
+  }
+  mine.sort((a, b) => (a.created_at || 0) - (b.created_at || 0));
+  return mine;
+}
+
+async function handleListReminders() {
+  const userId = String((await s.getUserId()) || "");
+  const mine = await listMyReminders(userId);
+  if (!mine.length) {
+    return s.reply("你还没有定时提醒。跟我说「提醒我明天早上10点带伞」「每天8点提醒我喝水」就能帮你设。");
+  }
+  const lines = mine.map((t, i) => {
+    const content = String(t.command || "").split(":").slice(3).join(":");
+    const when = String(t.schedule || "").trim();
+    const status = t.enable === false ? "已停用" : "进行中";
+    return `${i + 1}. [${status}] ${when}｜${content}`;
+  });
+  return s.reply(["===== 我的提醒 =====", ...lines, "回复「取消提醒 序号」取消，回复「取消提醒 全部」清空"].join("\n"));
+}
+
+async function handleCancelReminder(arg) {
+  const userId = String((await s.getUserId()) || "");
+  const mine = await listMyReminders(userId);
+  if (!mine.length) return s.reply("没有可取消的提醒。");
+  if (arg === "全部" || arg === "all") {
+    for (const t of mine) await new Bucket(TASKS_BUCKET).set(t.id, "");
+    return s.reply(`已取消全部 ${mine.length} 条提醒`);
+  }
+  const idx = Number(arg);
+  if (Number.isInteger(idx) && idx >= 1 && idx <= mine.length) {
+    await new Bucket(TASKS_BUCKET).set(mine[idx - 1].id, "");
+    return s.reply(`已取消提醒：${mine[idx - 1].title || "无标题"}`);
+  }
+  return s.reply(
+    ["请指定要取消的提醒序号：", ...mine.map((t, i) => `${i + 1}. ${t.title || "无标题"}`), "或回复「取消提醒 全部」清空全部"].join("\n"),
+  );
+}
+
 let cfg = {};
 
 async function main() {
@@ -257,6 +313,9 @@ async function main() {
   // 管理指令
   if (promptText === "状态") return handleStatus(key);
   if (promptText === "清空" || promptText === "忘记") return handleClear(key);
+  if (promptText === "查看提醒" || promptText === "我的提醒") return handleListReminders();
+  const cancelMatch = promptText.match(/^取消提醒\s*(.*)$/);
+  if (cancelMatch) return handleCancelReminder(cancelMatch[1].trim());
 
   // 直接存记忆：ai记一下生日是1996-01-01 / ai记下密码=123456
   if (cfg.enable_memory) {
@@ -315,6 +374,13 @@ async function main() {
         maxTokens: cfg.max_tokens,
         timeout: cfg.timeout,
         enabled: cfg.enable_tools,
+        sender: {
+          platform: String(systemVars.platform).toLowerCase(),
+          botId: String((await s.getBotId()) || ""),
+          userId,
+          chatId,
+          uuid: (typeof uuid === "function" && uuid()) || "",
+        },
       },
       messages,
     );

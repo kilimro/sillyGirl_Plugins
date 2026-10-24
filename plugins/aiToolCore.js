@@ -2,7 +2,7 @@
 // [name: aiToolCore]
 // [desc: OpenAI function calling 工具注册表与多轮工具循环公共能力。内置时间/天气/公网IP 与 Tavily 联网搜索(search_web)，aiChat/voiceChat 等 AI 插件统一从这里取工具、复用同一套多轮回传，新增工具只需 register 一条，无需改动各对话插件。配置（如 Tavily Key）通过 configure 注入并持久化到 Bucket，跨插件共享。]
 // [author: Mianpro官方]
-// [version: v1.0.1]
+// [version: v1.1.0]
 // [status: true]
 // [admin: false]
 // [public: true]
@@ -20,6 +20,92 @@ const { Bucket } = require("sillygirl");
 const MAX_TOOL_ROUNDS = 4;
 const CONFIG_BUCKET = "ai_tool_config";
 const CONFIG_KEY = "main";
+// 原生定时任务 Bucket（sillyGirl core/task.go 监听该 Bucket 动态注册 cron，插件写它即可创建/取消任务）
+const TASKS_BUCKET = "tasks";
+// 当前模块自身 UUID：原生任务触发 scripts=[SELF_UUID] 时，本模块顶层会以 FakerSender 上下文重跑并处理提醒发送
+const SELF_UUID = (typeof uuid === "function" && uuid()) || "";
+
+// ===== 定时提醒：cron 校验/时间转换 =====
+// 原生 CRON 为 robfig/cron v3 + cron.WithSeconds()，6 段格式：秒 分 时 日 月 周，使用服务器本地时区
+function validateCron6(expr) {
+  const parts = String(expr || "").trim().split(/\s+/);
+  if (parts.length !== 6) return "必须为6段（秒 分 时 日 月 周）";
+  const ranges = [[0, 59], [0, 59], [0, 23], [1, 31], [1, 12], [0, 7]];
+  for (let i = 0; i < 6; i += 1) {
+    const seg = parts[i];
+    if (!/^[0-9,\-*\/]+$/.test(seg)) return `第${i + 1}段含非法字符「${seg}」`;
+    for (const tok of seg.split(",")) {
+      const t = tok.trim();
+      if (!t || t === "*") continue;
+      if (t.includes("/")) {
+        // base/step：base 可为 *、数字、a-b
+        const [base, step] = t.split("/");
+        const sv = Number(step);
+        if (!Number.isInteger(sv) || sv < 1 || sv > 59) return `第${i + 1}段步长越界「${t}」`;
+        if (base !== "*" && !/^\d+(-\d+)?$/.test(base)) return `第${i + 1}段区间非法「${t}」`;
+        if (/^\d+$/.test(base)) {
+          const v = Number(base);
+          if (v < ranges[i][0] || v > ranges[i][1]) return `第${i + 1}段数值越界「${t}」`;
+        }
+        continue;
+      }
+      if (t.includes("-")) {
+        const [a, b] = t.split("-");
+        for (const n of [a, b]) {
+          const v = Number(n);
+          if (!Number.isInteger(v) || v < ranges[i][0] || v > ranges[i][1]) return `第${i + 1}段数值越界「${t}」`;
+        }
+        continue;
+      }
+      const v = Number(t);
+      if (!Number.isInteger(v) || v < ranges[i][0] || v > ranges[i][1]) return `第${i + 1}段数值越界「${t}」`;
+    }
+  }
+  return "";
+}
+
+// 一次性时间（本地时区）→ 6 段 cron；校验未来时间
+function atToCron6(atStr) {
+  const m = String(atStr || "").trim().match(/^(\d{4})-(\d{2})-(\d{2})[ T](\d{1,2}):(\d{2})(?::(\d{2}))?$/);
+  if (!m) throw new Error("at 时间格式应为 YYYY-MM-DD HH:mm（如 2026-10-25 10:00）");
+  const [_, y, mo, d, h, mi, s] = m;
+  const dt = new Date(Number(y), Number(mo) - 1, Number(d), Number(h), Number(mi), s ? Number(s) : 0);
+  if (Number.isNaN(dt.getTime())) throw new Error("at 时间无效");
+  if (dt.getTime() <= Date.now()) throw new Error(`at 时间已过去（${dt.toLocaleString()}），请改成未来时间`);
+  return `0 ${Number(mi)} ${Number(h)} ${Number(d)} ${Number(mo)} *`;
+}
+
+// ===== 定时提醒发送（由原生任务以 FakerSender 上下文触发本模块时执行）=====
+function parseReminderCommand(raw) {
+  // 格式：__reminder__:<taskId>:<once|repeat>:<content>
+  if (!String(raw).startsWith("__reminder__:")) return null;
+  const parts = String(raw).split(":");
+  if (parts.length < 4) return null;
+  return {
+    taskId: parts[1],
+    type: parts[2],
+    content: parts.slice(3).join(":"),
+  };
+}
+
+async function handleReminderSender(sendFn, deleteFn) {
+  let raw = "";
+  try {
+    raw = String(await s.getMsg() || "");
+  } catch (_) {}
+  const meta = parseReminderCommand(raw);
+  if (!meta || !meta.content) return;
+  try {
+    await sendFn(meta.content);
+  } catch (e) {
+    console.error(`[aiToolCore] 提醒发送失败: ${e?.message || e}`);
+    return;
+  }
+  // 一次性任务发送后自动注销（写空触发原生 watch 删除分支）
+  if (meta.type === "once") {
+    try { await deleteFn(meta.taskId); } catch (_) {}
+  }
+}
 
 // ===== 工具注册表 =====
 // 工具结构：{ type:"function", function:{name,description,parameters}, async execute(args){...} }
@@ -74,7 +160,7 @@ function getTool(name) {
 }
 
 // 执行模型返回的一次 tool_call；参数解析失败/执行异常都返回文本，不打断对话
-async function runTool(call) {
+async function runTool(call, senderCtx) {
   const name = call?.function?.name;
   const tool = registry.get(name);
   if (!tool) return `未知工具：${name}`;
@@ -85,7 +171,7 @@ async function runTool(call) {
     return `工具参数 JSON 解析失败：${call.function?.arguments}`;
   }
   try {
-    return await tool.execute(args, { getConfig });
+    return await tool.execute(args, { getConfig, sender: senderCtx || null });
   } catch (error) {
     return `工具 ${name} 执行失败：${error?.message || error}`;
   }
@@ -246,6 +332,64 @@ register({
   },
 });
 
+// ===== 定时提醒任务（复用 sillyGirl 原生定时任务机制）=====
+
+register({
+  type: "function",
+  function: {
+    name: "create_reminder",
+    description:
+      "创建定时提醒/任务：到点后给下达指令的用户本人发一条私聊消息。周期任务传 schedule（6段cron：秒 分 时 日 月 周，服务器本地时区；例如每天早10点=0 0 10 * * *，每5分钟=0 */5 * * * *）；一次性任务传 at（格式 YYYY-MM-DD HH:mm，例如“明天早上10点”应基于系统提示中的今天日期换算成具体日期）。两个参数至少传一个，同时传时以 schedule 为准。提醒内容 content 用一句简洁明确的话。",
+    parameters: {
+      type: "object",
+      properties: {
+        content: { type: "string", description: "提醒内容，一句简洁明确的话，例如：记得带伞" },
+        schedule: { type: "string", description: "周期任务的 6 段 cron 表达式（秒 分 时 日 月 周）" },
+        at: { type: "string", description: "一次性触发时间，格式 YYYY-MM-DD HH:mm" },
+      },
+      required: ["content"],
+    },
+  },
+  async execute(args, ctx) {
+    const content = String(args.content || "").trim();
+    if (!content) throw new Error("content 为空");
+    const schedule = String(args.schedule || "").trim();
+    const at = String(args.at || "").trim();
+    if (!schedule && !at) throw new Error("请提供 schedule（周期cron）或 at（一次性时间）");
+    let cron = schedule;
+    if (cron) {
+      const err = validateCron6(cron);
+      if (err) throw new Error(`cron 格式错误：${err}（6段：秒 分 时 日 月 周，例：每天早10点=0 0 10 * * *）`);
+    } else {
+      cron = atToCron6(at);
+    }
+    const sender = (ctx && ctx.sender) || {};
+    if (!sender.platform || !sender.userId) throw new Error("无法确定发送对象上下文");
+    const once = !schedule;
+    const taskId = (typeof genUuid === "function" && genUuid()) || `r${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+    const taskJson = {
+      task_id: taskId,
+      title: `提醒：${content.slice(0, 12)}`,
+      schedule: cron,
+      senders: [
+        {
+          platform: String(sender.platform),
+          bot_id: String(sender.botId || ""),
+          user_id: String(sender.userId),
+          chat_id: String(sender.userId),
+        },
+      ],
+      command: `__reminder__:${taskId}:${once ? "once" : "repeat"}:${content}`,
+      scripts: [SELF_UUID],
+      enable: true,
+      created_at: Math.floor(Date.now() / 1000),
+      remark: "AI 对话创建",
+    };
+    await new Bucket(TASKS_BUCKET).set(taskId, JSON.stringify(taskJson));
+    return `已创建${once ? "一次性" : "周期"}提醒：${content}\n触发时间：${cron}${once ? "" : "（周期 cron）"}\n到期将私聊提醒你`;
+  },
+});
+
 // ===== 多轮工具循环（收敛各对话插件重复实现）=====
 // ai: openaiChatCore 的 chat；opts: 见下；messages: 构建好的对话消息
 // opts: { baseUrl, apiKey, model, provider, thinking, temperature, maxTokens, timeout, tools, enabled, maxRounds }
@@ -278,7 +422,7 @@ async function chatLoop(ai, opts = {}, messages) {
       reasoning_content: last.reasoningContent || undefined,
     });
     for (const call of last.toolCalls) {
-      const result = await runTool(call);
+      const result = await runTool(call, opts.sender || null);
       current.push({
         role: "tool",
         tool_call_id: call.id,
@@ -291,6 +435,18 @@ async function chatLoop(ai, opts = {}, messages) {
   return last;
 }
 
+// 顶层提醒发送分支：本模块被原生任务以 FakerSender 上下文触发时（scripts=[SELF_UUID]），
+// 收到 "__reminder__:" 指令即直接回复内容并（一次性任务）注销任务；普通对话 require 时消息不含前缀，无副作用
+(async () => {
+  if (!SELF_UUID) return;
+  try {
+    await handleReminderSender(
+      (text) => s.reply(text),
+      (id) => new Bucket(TASKS_BUCKET).set(id, ""),
+    );
+  } catch (_) {}
+})();
+
 module.exports = {
   configure,
   getConfig,
@@ -300,4 +456,8 @@ module.exports = {
   runTool,
   chatLoop,
   MAX_TOOL_ROUNDS,
+  validateCron6,
+  atToCron6,
+  parseReminderCommand,
+  handleReminderSender,
 };
