@@ -2,7 +2,7 @@
 // [name: aiToolCore]
 // [desc: OpenAI function calling 工具注册表与多轮工具循环公共能力。内置时间/天气/公网IP 与 Tavily 联网搜索(search_web)，aiChat/voiceChat 等 AI 插件统一从这里取工具、复用同一套多轮回传，新增工具只需 register 一条，无需改动各对话插件。配置（如 Tavily Key）通过 configure 注入并持久化到 Bucket，跨插件共享。]
 // [author: Mianpro官方]
-// [version: v1.1.5]
+// [version: v1.1.6]
 // [status: true]
 // [admin: false]
 // [public: true]
@@ -126,6 +126,31 @@ async function reminderInterceptor() {
 // 工具结构：{ type:"function", function:{name,description,parameters}, async execute(args){...} }
 const registry = new Map();
 const configStore = new Bucket(CONFIG_BUCKET);
+const hostUuidStore = new Bucket("ai_host_uuid");
+// 宿主插件（aiChat/voiceChat）在 main() 每次执行时调用：一旦能拿到自己的 UUID 就持久化，
+// 供 create_reminder 复用——哪怕某次运行时探测不到，后续也能用之前成功捕获的值
+async function registerHostUuid(u) {
+  const v = String(u || "").trim();
+  if (!v) return false;
+  await hostUuidStore.set("host", v);
+  return true;
+}
+async function getHostUuid() {
+  try {
+    return String((await hostUuidStore.get("host", "")) || "").trim();
+  } catch (_) {
+    return "";
+  }
+}
+function uuidDiagnostics(senderCtx) {
+  try {
+    const envKeys = Object.keys(process.env || {}).filter((k) => /plugin|uuid|plugin_id/i.test(k));
+    console.log(
+      `[aiToolCore] uuid诊断: typeof uuid=${typeof uuid} | PLUGIN_ID=${(process.env && process.env.PLUGIN_ID) || "(无)"} | ` +
+        `环境变量(${envKeys.join(",") || "无"}) | sender=${JSON.stringify(senderCtx || {})}`,
+    );
+  } catch (_) {}
+}
 
 function stripEmpty(obj) {
   const out = {};
@@ -382,8 +407,11 @@ register({
     if (!sender.platform || !sender.userId) throw new Error("无法确定发送对象上下文");
     // 任务到点要触发哪个插件来发提醒：优先取宿主插件在 main() 里注入的 uuid（可靠）；
     // SELF_UUID 仅在模块顶层能访问全局 uuid 时兜底；都拿不到就拒绝创建，避免建出发不出的哑任务
-    const scriptUuid = String((sender && sender.uuid) || SELF_UUID || "").trim();
-    if (!scriptUuid) throw new Error("提醒发送组件未就绪：宿主插件未注入 UUID（请确认本地 aiChat≥v3.5.2 / voiceChat≥v2.3.2，且未被旧版本覆盖），更新并重启后重试");
+    const scriptUuid = String((sender && sender.uuid) || (await getHostUuid()) || SELF_UUID || "").trim();
+    if (!scriptUuid) {
+      uuidDiagnostics(sender);
+      throw new Error("提醒发送组件未就绪：宿主插件未注入 UUID（请确认本地 aiChat≥v3.5.3 / voiceChat≥v2.3.3，且未被旧版本覆盖），更新并重启后重试");
+    }
     const once = !schedule;
     const taskId = (typeof genUuid === "function" && genUuid()) || `r${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
     // 发送目标 = 下命令的会话：群里下的发群里，私聊下的发私聊（用户未加好友也能收到）
@@ -463,6 +491,8 @@ async function chatLoop(ai, opts = {}, messages) {
 module.exports = {
   configure,
   getConfig,
+  registerHostUuid,
+  getHostUuid,
   register,
   listTools,
   getTool,

@@ -2,7 +2,7 @@
 // [name: aiChat]
 // [desc: 接入任意 OpenAI 兼容接口的 AI 助手，内置 DeepSeek/智谱GLM/Kimi/MiniMax/通义Qwen 提供商预设。触发词：起床了绵绵 / mark / 小助手，消息任意位置出现即触发（大小写不敏感），其他命令走原插件不抢。支持 BaseURL/Key/模型/长系统提示词（变量插值）/上下文轮数/工具调用/思考模式控制（thinking 默认 off 关闭，语音回复场景无需思考）。v3.1 起会话记忆统一走 mm_chat_history，与 voiceChat/visionChat 共享上下文（发图识别后可直接追问图片内容）。v3.4 起工具统一由 aiToolCore 注册表提供（时间/天气/公网IP/Tavily 联网搜索），新增工具无需改本插件。]
 // [author: Mianpro官方]
-// [version: v3.5.3]
+// [version: v3.5.4]
 // [rule: 起床了绵绵|mark|Mark|小助手]
 // [status: true]
 // [admin: false]
@@ -296,6 +296,12 @@ async function main() {
   };
   // 工具配置注入（Tavily Key 持久化到 aiToolCore，跨插件共享）
   await tools.configure({ tavilyApiKey: cfg.tavily_api_key });
+  // 宿主 UUID 注册：多环境探测（goja uuid() / Node PLUGIN_ID），拿到即持久化供提醒任务复用
+  await tools.registerHostUuid(
+    (typeof uuid === "function" && uuid()) ||
+      (typeof process !== "undefined" && process.env && process.env.PLUGIN_ID) ||
+      "",
+  );
   const rawContent = String((await s.getMsg()) || "").trim();
   if (!rawContent) return;
 
