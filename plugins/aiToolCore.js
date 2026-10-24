@@ -2,7 +2,7 @@
 // [name: aiToolCore]
 // [desc: OpenAI function calling 工具注册表与多轮工具循环公共能力。内置时间/天气/公网IP 与 Tavily 联网搜索(search_web)，aiChat/voiceChat 等 AI 插件统一从这里取工具、复用同一套多轮回传，新增工具只需 register 一条，无需改动各对话插件。配置（如 Tavily Key）通过 configure 注入并持久化到 Bucket，跨插件共享。]
 // [author: Mianpro官方]
-// [version: v1.1.0]
+// [version: v1.1.1]
 // [status: true]
 // [admin: false]
 // [public: true]
@@ -94,17 +94,26 @@ async function handleReminderSender(sendFn, deleteFn) {
     raw = String(await s.getMsg() || "");
   } catch (_) {}
   const meta = parseReminderCommand(raw);
-  if (!meta || !meta.content) return;
+  if (!meta || !meta.content) return false;
   try {
     await sendFn(meta.content);
   } catch (e) {
     console.error(`[aiToolCore] 提醒发送失败: ${e?.message || e}`);
-    return;
+    return true;
   }
   // 一次性任务发送后自动注销（写空触发原生 watch 删除分支）
   if (meta.type === "once") {
     try { await deleteFn(meta.taskId); } catch (_) {}
   }
+  return true;
+}
+
+// 对话插件在 main() 开头调用：若当前消息是定时任务触发的提醒指令，直接回复内容并（一次性）注销，返回 true
+async function reminderInterceptor() {
+  return handleReminderSender(
+    (text) => s.reply(text),
+    (id) => new Bucket(TASKS_BUCKET).set(id, ""),
+  );
 }
 
 // ===== 工具注册表 =====
@@ -460,4 +469,5 @@ module.exports = {
   atToCron6,
   parseReminderCommand,
   handleReminderSender,
+  reminderInterceptor,
 };
