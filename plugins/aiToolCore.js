@@ -2,7 +2,7 @@
 // [name: aiToolCore]
 // [desc: OpenAI function calling 工具注册表与多轮工具循环公共能力。内置时间/天气/公网IP 与 Tavily 联网搜索(search_web)，aiChat/voiceChat 等 AI 插件统一从这里取工具、复用同一套多轮回传，新增工具只需 register 一条，无需改动各对话插件。配置（如 Tavily Key）通过 configure 注入并持久化到 Bucket，跨插件共享。]
 // [author: Mianpro官方]
-// [version: v1.1.4]
+// [version: v1.1.5]
 // [status: true]
 // [admin: false]
 // [public: true]
@@ -22,8 +22,14 @@ const CONFIG_BUCKET = "ai_tool_config";
 const CONFIG_KEY = "main";
 // 原生定时任务 Bucket（sillyGirl core/task.go 监听该 Bucket 动态注册 cron，插件写它即可创建/取消任务）
 const TASKS_BUCKET = "tasks";
-// 当前模块自身 UUID：原生任务触发 scripts=[SELF_UUID] 时，本模块顶层会以 FakerSender 上下文重跑并处理提醒发送
-const SELF_UUID = (typeof uuid === "function" && uuid()) || "";
+// 当前模块自身 UUID（多运行环境兼容）：
+//  - goja 环境（老版 sillyGirl）：vm 注入全局 uuid()，返回当前 Handle 插件的 UUID
+//  - Node 运行时（sillygirl-runtime-preload / srpc）：process.env.PLUGIN_ID 即插件 UUID
+const SELF_UUID = String(
+  (typeof uuid === "function" && uuid()) ||
+  (typeof process !== "undefined" && process.env && process.env.PLUGIN_ID) ||
+  "",
+);
 
 // ===== 定时提醒：cron 校验/时间转换 =====
 // 原生 CRON 为 robfig/cron v3 + cron.WithSeconds()，6 段格式：秒 分 时 日 月 周，使用服务器本地时区

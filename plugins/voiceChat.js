@@ -2,7 +2,7 @@
 // [name: voiceChat]
 // [desc: 仅 Gewe 平台可用。收到语音消息自动转文字并接入 AI 对话（复刻 aiChat 核心逻辑）。语音转文字（STT）与 AI 对话各自独立配置模型，内置 DeepSeek/智谱GLM/Kimi/MiniMax/通义Qwen 提供商预设，思考模式默认 off 关闭（语音回复场景无需思考）。支持系统提示词变量、上下文记忆、同人冷却、群白名单与语音回复（reply_mode=voice/text/mix，mix 按语音概率随机混合语音与文字，更有真人感）。v2.1 起会话记忆统一走 mm_chat_history，与 aiChat/visionChat 共享上下文（发图识别后可语音追问图片内容）。v2.3 起工具统一由 aiToolCore 注册表提供（时间/天气/公网IP/Tavily 联网搜索），与 aiChat 共享工具配置。]
 // [author: Mianpro官方]
-// [version: v2.3.2]
+// [version: v2.3.3]
 // [rule: raw ^\[CQ:record[^\]]*\]$]
 // [status: true]
 // [admin: false]
@@ -327,7 +327,10 @@ async function main() {
           botId: String((await s.getBotId()) || ""),
           userId,
           chatId,
-          uuid: (typeof uuid === "function" && uuid()) || "",
+          uuid:
+            (typeof uuid === "function" && uuid()) ||
+            (typeof process !== "undefined" && process.env && process.env.PLUGIN_ID) ||
+            "",
         },
       },
       messages,
