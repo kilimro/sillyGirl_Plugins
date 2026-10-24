@@ -2,7 +2,7 @@
 // [name: aiChat]
 // [desc: 接入任意 OpenAI 兼容接口的 AI 助手，内置 DeepSeek/智谱GLM/Kimi/MiniMax/通义Qwen 提供商预设。触发词：起床了绵绵 / mark / 小助手，消息任意位置出现即触发（大小写不敏感），其他命令走原插件不抢。支持 BaseURL/Key/模型/长系统提示词（变量插值）/上下文轮数/工具调用/思考模式控制（thinking 默认 off 关闭，语音回复场景无需思考）。v3.1 起会话记忆统一走 mm_chat_history，与 voiceChat/visionChat 共享上下文（发图识别后可直接追问图片内容）。v3.4 起工具统一由 aiToolCore 注册表提供（时间/天气/公网IP/Tavily 联网搜索），新增工具无需改本插件。]
 // [author: Mianpro官方]
-// [version: v3.4.0]
+// [version: v3.4.1]
 // [rule: 起床了绵绵|mark|Mark|小助手]
 // [status: true]
 // [admin: false]
@@ -299,6 +299,9 @@ async function main() {
       const memList = await mem.list(systemVars.platform, userId);
       finalSystemPrompt += mem.formatContext(memList);
     }
+    // 工具使用规范：调用过联网搜索等工具后要总结归纳作答，不要直接罗列原始条目
+    finalSystemPrompt +=
+      "\n\n【工具使用规范】当你调用过 get_weather / search_web 等工具后：请通读工具返回的信息，用自己的话组织答案回答用户，必要时给出来源链接；禁止把工具返回的原始条目、标题列表或代码块直接转发给用户。";
     const messages = ai.buildMessages(finalSystemPrompt, history, promptText);
     const result = await tools.chatLoop(
       ai,

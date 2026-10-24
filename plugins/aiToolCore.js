@@ -2,7 +2,7 @@
 // [name: aiToolCore]
 // [desc: OpenAI function calling 工具注册表与多轮工具循环公共能力。内置时间/天气/公网IP 与 Tavily 联网搜索(search_web)，aiChat/voiceChat 等 AI 插件统一从这里取工具、复用同一套多轮回传，新增工具只需 register 一条，无需改动各对话插件。配置（如 Tavily Key）通过 configure 注入并持久化到 Bucket，跨插件共享。]
 // [author: Mianpro官方]
-// [version: v1.0.0]
+// [version: v1.0.1]
 // [status: true]
 // [admin: false]
 // [public: true]
@@ -111,11 +111,13 @@ register({
   type: "function",
   function: {
     name: "get_weather",
-    description: "查询指定城市的实时天气（数据来自 wttr.in）",
+    description:
+      "查询指定城市的天气，支持今天/明天/后天的预报（数据来自 wttr.in）。例如“北京今天天气”“上海明天天气”“广州后天会不会下雨”。参数 city=城市名；when=今天/明天/后天（不填默认今天）",
     parameters: {
       type: "object",
       properties: {
         city: { type: "string", description: "城市名，例如：北京、上海、深圳" },
+        when: { type: "string", description: "今天/明天/后天，不填默认今天" },
       },
       required: ["city"],
     },
@@ -129,10 +131,35 @@ register({
     });
     if (!res.ok) throw new Error(`wttr.in HTTP ${res.status}`);
     const data = await res.json();
-    const cur = data?.current_condition?.[0];
-    if (!cur) throw new Error("天气接口未返回数据");
-    const desc = cur.lang_zh?.[0]?.value || cur.weatherDesc?.[0]?.value || "";
-    return `${args.city} 当前${desc}，气温 ${cur.temp_C}°C（体感 ${cur.FeelsLikeC}°C），湿度 ${cur.humidity}%，风 ${cur.windspeedKmph}km/h`;
+    const days = Array.isArray(data?.weather) ? data.weather : [];
+    if (!days.length) throw new Error("天气接口未返回数据");
+    const when = String(args.when || "").trim();
+    // 解析目标日期：今天=0 明天=1 后天=2；兼容 tomorrow/today 与具体日期 YYYY-MM-DD
+    let idx = 0;
+    if (/^(明天|明日|tomorrow|tom)$/i.test(when)) idx = 1;
+    else if (/^(后天|dayaftertomorrow)/i.test(when)) idx = 2;
+    else {
+      const m = String(when).match(/\d{4}-\d{2}-\d{2}/);
+      if (m) {
+        const found = days.findIndex((d) => d.date === m[0]);
+        if (found === -1) throw new Error("wttr.in 只提供今明后天 3 天预报，暂查不到该日期");
+        idx = found;
+      }
+    }
+    const day = days[idx];
+    const hour = day?.hourly?.[Math.floor((day.hourly?.length || 0) / 2)] || {};
+    const desc =
+      hour.lang_zh?.[0]?.value || hour.weatherDesc?.[0]?.value || day.weatherDesc?.[0]?.value || "未知天气";
+    const label = idx === 0 ? "今天" : idx === 1 ? "明天" : "后天";
+    const dayLabel = String(day.date || "").slice(5).replace("-", "月") + "日";
+    if (idx === 0) {
+      const cur = data?.current_condition?.[0];
+      if (cur) {
+        const curDesc = cur.lang_zh?.[0]?.value || cur.weatherDesc?.[0]?.value || desc;
+        return `${args.city}${label}（${dayLabel}）：当前${curDesc}，气温 ${cur.temp_C}°C（体感 ${cur.FeelsLikeC}°C），湿度 ${cur.humidity}%，风 ${cur.windspeedKmph}km/h；全天最高 ${day.maxtempC}°C / 最低 ${day.mintempC}°C，降水概率 ${hour.chanceofrain || 0}%`;
+      }
+    }
+    return `${args.city}${label}（${dayLabel}）：${desc}，最高 ${day.maxtempC}°C / 最低 ${day.mintempC}°C，降水概率 ${hour.chanceofrain || 0}%`;
   },
 });
 
@@ -164,7 +191,7 @@ register({
   function: {
     name: "search_web",
     description:
-      "联网实时搜索（Tavily）。当用户询问最新资讯、实时信息、当下事件、新闻，或你的训练知识可能过时/不确定时调用；不要用于闲聊、简单计算或常识问题。",
+      "联网实时搜索（Tavily）。当用户询问最新资讯、实时信息、当下事件、新闻，或你的训练知识可能过时/不确定时调用；不要用于闲聊、简单计算或常识问题。调用后请通读返回结果，用自己的话总结归纳回答用户，并附上引用来源链接，不要直接罗列原始条目。",
     parameters: {
       type: "object",
       properties: {
