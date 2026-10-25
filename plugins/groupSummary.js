@@ -1,10 +1,9 @@
 // [title: 群聊总结]
 // [name: groupSummary]
-// [desc: 持续记录群聊消息（仅群聊，私聊不记录），发"群聊总结"用 AI 生成当日精华总结报告。支持文字/图片两种输出（图片用 MiniMax 画一张总结封面）。每天16:00定时把当日总结推送给 Admin 面板「定时任务」里配置的发送人。兼容 Gewe / yyw / 飞书等全平台。]
+// [desc: 持续记录群聊消息（仅群聊，私聊不记录），发"群聊总结"用 AI 生成当日精华总结报告。支持文字/图片两种输出（图片用 MiniMax 画一张总结封面）。仅 gewe 平台可用；白名单群在「定时总结群列表(schedule_groups)」里配置（格式 gewe:群ID,gewe:群ID），白名单外群不记录、不响应命令、不参与定时。定时推送统一由 Admin 面板「定时任务」配置（推荐 0 18 * * *，senders 填要推送的群），插件不再自带 cron，避免双入口重复推送。]
 // [author: Mianpro官方]
-// [version: v1.2.0]
-// [rule: *]
-// [cron: 0 16 * * *]
+// [version: v1.3.0]
+// [rule: raw [\s\S]+]
 // [status: true]
 // [admin: false]
 // [public: true]
@@ -21,7 +20,25 @@ const draw = require("./aiDrawCore.js");
 
 const STORE_BUCKET = "group_summary_store"; // 消息积累存储
 const storeBucket = new Bucket(STORE_BUCKET);
+const DEDUP_BUCKET = "group_summary_dedup"; // 定时总结当日去重
+const dedupBucket = new Bucket(DEDUP_BUCKET);
 const MAX_KEYS_PER_GROUP = 2000; // 单群最多存的唯一键（超了清最旧）
+const ONLY_PLATFORM = "gewe"; // 本插件仅 gewe 平台可用
+
+// 解析白名单群（schedule_groups，仅取 gewe 条目）→ Set<chatId>
+async function allowedChatIds(cfg) {
+  const set = new Set();
+  const cfgGroups = String(cfg.schedule_groups || "").trim();
+  if (!cfgGroups) return set; // 空=不限制群
+  for (const item of cfgGroups.split(/[,，]/)) {
+    const idx = item.indexOf(":");
+    if (idx < 0) continue;
+    const p = item.slice(0, idx).trim().toLowerCase();
+    const cid = item.slice(idx + 1).trim();
+    if (p === ONLY_PLATFORM && cid) set.add(cid);
+  }
+  return set;
+}
 
 const form = new plugin.Form({
   // ---- 总结 AI（独立配置，不依赖 aiChat）----
@@ -68,10 +85,10 @@ const form = new plugin.Form({
     .title("封面提示词")
     .description("生成总结封面图的提示词，{topic} 会被替换为总结标题")
     .default("现代扁平插画风格，一群微信用户围坐在一起热烈讨论的群聊场景，手机屏幕上显示聊天记录和气泡，温暖明亮的色调，中央有标题「群聊精华总结」，简洁大气，适合作为聊天总结报告封面"),
-  // ---- 定时总结（每天16:00，发送目标在 Admin 面板「定时任务」里配置）----
+  // ---- 定时总结（Admin 面板「定时任务」触发，senders 填要推送的群；不再自带 cron）----
   schedule_groups: plugin.Form.string()
-    .title("定时总结群列表")
-    .description("逗号分隔 平台:群ID，如 gewe:18439455482@chatroom,yyw:xxxx。留空=自动总结当前发送平台下今天有消息的所有群")
+    .title("白名单/定时总结群列表")
+    .description("逗号分隔 gewe:群ID，如 gewe:25897824478@chatroom,gewe:58618304989@chatroom。这些群=插件唯一生效范围（记录/命令/定时总结）。留空=gewe 下所有群可用")
     .default(""),
   schedule_title: plugin.Form.string()
     .title("定时发送前缀")
@@ -80,13 +97,17 @@ const form = new plugin.Form({
 });
 
 // 消息去重与积累存储。键结构：<platform>:<chatId>:<时间戳>:<随机>（不依赖 msgId，兼容各平台）
-async function recordMessage() {
+async function recordMessage(cfg) {
   const platform = String((await s.getPlatform()) || "").toLowerCase();
   const chatId = String((await s.getChatId()) || "").trim();
   const userId = String((await s.getUserId()) || "").trim();
   const botId = String((await s.getBotId()) || "").trim();
 
-  // 仅群聊（chatId 非空且不是私聊对等 ID），全平台通用
+  // 仅 gewe 平台 + 白名单群（schedule_groups 非空时）
+  if (platform !== ONLY_PLATFORM) return;
+  const allow = await allowedChatIds(cfg);
+  if (allow.size && !allow.has(chatId)) return;
+  // 仅群聊（chatId 非空且不是私聊对等 ID）
   if (!chatId || !userId || chatId === userId) return;
   // 跳过机器人自己发的（避免记录自己触发的总结命令等）
   if (botId && userId === botId) return;
@@ -139,7 +160,6 @@ async function recordMessage() {
   });
 
   // 控制单群存储量：超过 max_stored 时清掉该群最旧的
-  const cfg = (await form.get()) || {};
   const maxStored = Number(cfg.max_stored) || 200;
   const allKeys = (await bucket.keys()).filter((k) => k.startsWith(groupPrefix));
   if (allKeys.length > maxStored + 100) {
@@ -227,14 +247,17 @@ async function main() {
 
   const isCmd = /^(群聊总结|总结群聊)/.test(raw);
   if (!isCmd) {
-    await recordMessage();
+    await recordMessage(cfg);
     return s.resume();
   }
 
-  // 全平台执行总结（Gewe/yyw/飞书等）
+  // 命令入口：仅 gewe 平台 + 白名单群响应；其余平台/群直接放行
   const platform = String((await s.getPlatform()) || "").toLowerCase();
   const chatId = String((await s.getChatId()) || "").trim();
   const userId = String((await s.getUserId()) || "").trim();
+  if (platform !== ONLY_PLATFORM) return s.resume();
+  const allow = await allowedChatIds(cfg);
+  if (allow.size && !allow.has(chatId)) return s.resume();
   // 私聊不生效
   if (!chatId || chatId === userId) return s.reply("群聊总结仅在群聊中可用");
 
@@ -301,28 +324,29 @@ async function main() {
   }
 }
 
-// 定时总结：每天16:00由框架调度触发，把当天群聊总结推送给 Admin 面板「定时任务」配置的发送人
+// 定时总结：由 Admin 面板「定时任务」触发。两种模式：
+// ① Admin 任务 senders 配了群（推荐）→ 每个 sender 各 Handle 一次，本次只总结当前 Handle 对应的群（不重复）
+// ② senders 未配（targetChat 空）→ 总结 schedule_groups 白名单群；白名单空则自动找 gewe 下今天有消息的群
 async function runScheduled(cfg) {
   const platform = String((await s.getPlatform()) || "").toLowerCase();
+  // 仅 gewe 平台
+  if (platform !== ONLY_PLATFORM) return;
+  const allow = await allowedChatIds(cfg);
   const targetChat = String((await s.getChatId()) || "").trim();
-  // 未在 Admin 面板配置发送人时 chatId 为空，静默跳过
-  if (!targetChat) {
-    console.log("[groupSummary] 定时任务未配置发送人，跳过本次推送");
-    return;
-  }
 
-  // 目标群列表：优先 schedule_groups 配置，留空则自动找发送平台下今天有消息的群
-  const groups = [];
-  const cfgGroups = String(cfg.schedule_groups || "").trim();
-  if (cfgGroups) {
-    for (const item of cfgGroups.split(/[,，]/)) {
-      const idx = item.indexOf(":");
-      if (idx < 0) continue;
-      const p = item.slice(0, idx).trim().toLowerCase();
-      const cid = item.slice(idx + 1).trim();
-      if (p === platform && cid) groups.push(cid);
+  let groups = [];
+  if (targetChat) {
+    // 模式①：Admin 任务 senders 指定单群（白名单非空时校验）
+    if (allow.size && !allow.has(targetChat)) {
+      console.log(`[groupSummary] 群 ${targetChat} 不在白名单，跳过本次推送`);
+      return;
     }
+    groups = [targetChat];
+  } else if (allow.size) {
+    // 模式②：白名单即定时群列表
+    groups = [...allow];
   } else {
+    // 模式②-自动：gewe 下今天有消息的群
     const keys = await storeBucket.keys();
     const seen = new Set();
     for (const k of keys) {
@@ -342,13 +366,21 @@ async function runScheduled(cfg) {
   }
 
   const title = String(cfg.schedule_title || "").trim();
+  const today = new Date();
+  const todayKey = `${today.getFullYear()}-${today.getMonth() + 1}-${today.getDate()}`;
   for (const chatId of groups) {
     try {
       const prefix = `${platform}:${chatId}:`;
       const items = await readTodayMessages(prefix);
       if (!items.length) continue;
+      // 当日去重：同平台同群同一天只推一次（防 Admin 多 sender 重复 Handle）
+      const dedupKey = `done:${platform}:${chatId}:${todayKey}`;
+      try {
+        if (await dedupBucket.get(dedupKey, "")) continue;
+      } catch (_) {}
       const summary = await summarize(items, cfg);
       if (!summary) continue;
+      await dedupBucket.set(dedupKey, "1");
       const payload = title ? `${title}\n${summary}` : summary;
       if (String(cfg.output_mode || "text") === "image") {
         await sendSummaryWithImage(payload, cfg);
