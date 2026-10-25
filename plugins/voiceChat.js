@@ -1,9 +1,9 @@
 // [title: 语音对话聊天]
 // [name: voiceChat]
-// [desc: 仅 Gewe 平台可用。收到语音消息自动转文字并接入 AI 对话（复刻 aiChat 核心逻辑）。语音转文字（STT）与 AI 对话各自独立配置模型，内置 DeepSeek/智谱GLM/Kimi/MiniMax/通义Qwen 提供商预设，思考模式默认 off 关闭（语音回复场景无需思考）。支持系统提示词变量、上下文记忆、同人冷却、群白名单与语音回复（reply_mode=voice/text/mix，mix 按语音概率随机混合语音与文字，更有真人感）。v2.1 起会话记忆统一走 mm_chat_history，与 aiChat/visionChat 共享上下文（发图识别后可语音追问图片内容）。v2.3 起工具统一由 aiToolCore 注册表提供（时间/天气/公网IP/Tavily 联网搜索），与 aiChat 共享工具配置。]
+// [desc: 仅 Gewe / yyw 平台可用。收到语音消息自动转文字并接入 AI 对话（复刻 aiChat 核心逻辑）。语音转文字（STT）与 AI 对话各自独立配置模型，内置 DeepSeek/智谱GLM/Kimi/MiniMax/通义Qwen 提供商预设，思考模式默认 off 关闭（语音回复场景无需思考）。支持系统提示词变量、上下文记忆、同人冷却、群白名单与语音回复（reply_mode=voice/text/mix，mix 按语音概率随机混合语音与文字，更有真人感）。Gewe 走 silk 解码链路；yyw 解析 [YW.voi] 拼接「yyw 媒体公网地址」的 wav 直转文字、语音回复直接发 [CQ:record] 公网 URL（无需 silk 转换），该地址只在本地配置不写入代码。v2.1 起会话记忆统一走 mm_chat_history，与 aiChat/visionChat 共享上下文（发图识别后可语音追问图片内容）。v2.3 起工具统一由 aiToolCore 注册表提供（时间/天气/公网IP/Tavily 联网搜索），与 aiChat 共享工具配置。]
 // [author: Mianpro官方]
-// [version: v2.3.4]
-// [rule: raw ^\[CQ:record[^\]]*\]$]
+// [version: v2.4.0]
+// [rule: raw ^\[(CQ:record|YW\.voi)[^\]]*\]$]
 // [status: true]
 // [admin: false]
 // [public: true]
@@ -153,6 +153,11 @@ const form = new plugin.Form({
     .title("返回值取值字段")
     .description("从 API 返回 JSON 里取 silk 公网 URL 的字段")
     .default("silk_url"),
+  // yyw 平台：语音文件转公网的地址（留空=yyw 平台语音链路不可用）
+  yyw_media_base: plugin.Form.string()
+    .title("yyw 媒体公网地址")
+    .description("yyw 平台语音转公网的地址（如 http://你的服务器:端口，不含末尾斜杠）。填了 yyw 平台才能收发语音（收=转文字，发=语音回复直发公网 URL）；留空=yyw 自动不可用。Gewe 平台无需填写")
+    .default(""),
 });
 
 const cooldownStore = new Bucket(COOLDOWN_BUCKET);
@@ -245,13 +250,13 @@ async function main() {
       "",
   );
   const platform = String((await s.getPlatform()) || "").toLowerCase();
-  // 仅 Gewe 生效：语音扩展 CQ 只有 Gewe 适配器输出
-  if (platform !== "gewe") return;
+  // 仅 Gewe / yyw 生效：语音扩展 CQ 只有 Gewe/yyw 适配器输出
+  if (platform !== "gewe" && platform !== "yyw") return;
 
   const raw = String((await s.getMsg()) || "").trim();
   // 定时任务触发的提醒指令：直接回复内容（一次性任务自动注销），不走语音链路
   if (await tools.reminderInterceptor()) return;
-  if (!raw || !/\[CQ:record[^\]]*\]/.test(raw)) return;
+  if (!raw || !/\[(CQ:record|YW\.voi)[^\]]*\]/.test(raw)) return;
 
   const userId = String((await s.getUserId()) || "");
   const chatId = String((await s.getChatId()) || "");
@@ -278,12 +283,28 @@ async function main() {
   // ===== 语音链路：下载 silk -> 解码 WAV -> 转文字 =====
   let text = "";
   try {
-    const silkUrl = await geweCore.downloadVoiceFromCq(raw);
-    if (!silkUrl) throw new Error("downloadVoice 未返回音频地址");
-    const silkRes = await fetch(silkUrl, { signal: AbortSignal.timeout(Number(cfg.timeout) || 60000) });
-    if (!silkRes.ok) throw new Error(`silk 下载 HTTP ${silkRes.status}`);
-    const silkBuf = new Uint8Array(await silkRes.arrayBuffer());
-    const wav = await whisper.silkToWav(silkBuf, 24000);
+    let wav;
+    if (platform === "yyw") {
+      // yyw：解析 [YW.voi,file=xxx.voi] 拼公网 wav 地址，直接转文字（无需 silk 解码）
+      const base = String(cfg.yyw_media_base || "").trim().replace(/\/+$/, "");
+      if (!base) throw new Error("yyw 平台语音链路需先在插件配置里填写「yyw 媒体公网地址」");
+      const fileMatch = raw.match(/\[YW\.voi,file=([^,\]]+)/);
+      const file = fileMatch ? fileMatch[1].trim() : "";
+      if (!file) throw new Error("未解析到语音文件 ID");
+      const id = file.replace(/\.voi$/i, "");
+      const wavUrl = base + "/record/" + id + ".wav";
+      await new Promise((r) => setTimeout(r, 2000)); // 等转换脚本完成（约 2 秒）
+      const wavRes = await fetch(wavUrl, { signal: AbortSignal.timeout(Number(cfg.timeout) || 60000) });
+      if (!wavRes.ok) throw new Error("wav 下载 HTTP " + wavRes.status);
+      wav = new Uint8Array(await wavRes.arrayBuffer());
+    } else {
+      const silkUrl = await geweCore.downloadVoiceFromCq(raw);
+      if (!silkUrl) throw new Error("downloadVoice 未返回音频地址");
+      const silkRes = await fetch(silkUrl, { signal: AbortSignal.timeout(Number(cfg.timeout) || 60000) });
+      if (!silkRes.ok) throw new Error("silk 下载 HTTP " + silkRes.status);
+      const silkBuf = new Uint8Array(await silkRes.arrayBuffer());
+      wav = await whisper.silkToWav(silkBuf, 24000);
+    }
     const sttRes = await whisper.transcribe({
       baseUrl: String(cfg.stt_base_url || "").trim() || resolvedChat.baseUrl,
       apiKey: String(cfg.stt_api_key || "").trim() || cfg.api_key,
@@ -386,6 +407,13 @@ async function main() {
         const audioUrl = await tts.synthesize(replyText, ttsOpts);
         const toWxid = String((await s.getChatId()) || (await s.getUserId()) || "").trim();
         if (!toWxid) throw new Error("无法确定接收人(toWxid)");
+        if (platform === "yyw") {
+          // yyw：直接发 [CQ:record,url=公网]（适配器 SendVoiceMsg 拉取公网音频），无需 silk 转换
+          if (!audioUrl) throw new Error("TTS 未返回音频 URL");
+          await s.reply("[CQ:record,url=" + audioUrl + "]");
+          return;
+        }
+        // gewe：mp3 → silk 转换后发语音条
         if (!String(cfg.convert_api || "").trim()) {
           throw new Error("语音回复需配置 mp3转silk 的 API 地址（convert_api）");
         }

@@ -1,9 +1,9 @@
 // [title: 图片识图助手]
 // [name: visionChat]
-// [desc: 仅 Gewe 平台、仅管理员可用。收到图片消息后调用多模态大模型识图并转成中文文字回复。基于 OpenAI 兼容 Chat Completions + image_url 多模态输入，默认 MiniMax-M3.1-Flash-Preview（M Plan 原生多模态，Key 自动读 ~/.mmx/config.json），也可配置其他支持 image_url 的厂商（GLM-4V / Qwen-VL / Kimi 等）。v1.1 起识图结果写入统一会话记忆 mm_chat_history，后续可直接用 aiChat / voiceChat 追问图片内容（只带识图文字描述，不带原图）。]
+// [desc: 仅 Gewe / yyw 平台、仅管理员可用。收到图片消息后调用多模态大模型识图并转成中文文字回复。基于 OpenAI 兼容 Chat Completions + image_url 多模态输入，默认 MiniMax-M3.1-Flash-Preview（M Plan 原生多模态，Key 自动读 ~/.mmx/config.json），也可配置其他支持 image_url 的厂商（GLM-4V / Qwen-VL / Kimi 等）。Gewe 走 CDN 下载；yyw 解析 [YW.img] 并拼接「yyw 媒体公网地址」公网图片 URL（脚本转换有约 2 秒延迟，已自动等待；该地址只在本地配置，不写入代码）。v1.1 起识图结果写入统一会话记忆 mm_chat_history，后续可直接用 aiChat / voiceChat 追问图片内容（只带识图文字描述，不带原图）。]
 // [author: Mianpro官方]
-// [version: v1.1.0]
-// [rule: raw ^\[CQ:image[^\]]*\]$]
+// [version: v1.2.0]
+// [rule: raw ^\[(CQ:image|YW\.img)[^\]]*\]$]
 // [status: true]
 // [admin: true]
 // [public: true]
@@ -46,6 +46,10 @@ const form = new plugin.Form({
     .title("防抖秒数")
     .description("同一时间窗口内连续收到的图片只识别一次，防止刷屏")
     .default(10),
+  yyw_media_base: plugin.Form.string()
+    .title("yyw 媒体公网地址")
+    .description("yyw 平台图片/语音转公网的地址（如 http://你的服务器:端口，不含末尾斜杠）。填了 yyw 平台才能识图；留空=yyw 平台自动不可用。Gewe 平台无需填写")
+    .default(""),
 });
 
 let cfg = {};
@@ -136,9 +140,9 @@ async function main() {
   const raw = String((await s.getMsg()) || "").trim();
   if (!raw) return;
 
-  // 仅 Gewe 平台可用（只有 gewe 能取到图片公网地址）
+  // 仅 Gewe / yyw 平台可用（Gewe 走 CDN 下载；yyw 走「yyw 媒体公网地址」拼接公网图片 URL）
   const platform = String((await s.getPlatform()) || "").toLowerCase();
-  if (platform !== "gewe") return;
+  if (platform !== "gewe" && platform !== "yyw") return;
 
   // 防抖：配置秒数内连续图片只识别一次
   const now = Date.now();
@@ -146,13 +150,31 @@ async function main() {
   if (now - lastVisionAt < cooldownMs) return;
   lastVisionAt = now;
 
-  // 提取图片公网地址（gewe CDN 下载返回公网 URL，直接喂给 API）
+  // 提取图片公网地址：gewe=CDN 下载；yyw=解析 [YW.img,file=xxx.img] 拼公网地址（转换脚本约 2 秒延迟，自动等待）
   let imgUrl = "";
-  try {
-    imgUrl = await geweCore.downloadImageFromCq(raw);
-  } catch (e) {
-    await s.reply(`取图失败：${String(e?.message || e).slice(0, 100)}`);
-    return;
+  if (platform === "yyw") {
+    const base = String(cfg.yyw_media_base || "").trim().replace(/\/+$/, "");
+    if (!base) {
+      await s.reply("yyw 平台识图需先在插件配置里填写「yyw 媒体公网地址」");
+      return;
+    }
+    const fileMatch = raw.match(/\[YW\.img,file=([^,\]]+)/);
+    const file = fileMatch ? fileMatch[1].trim() : "";
+    if (!file) {
+      await s.reply("未获取到图片地址");
+      return;
+    }
+    // 去掉 .img 扩展名，按 .jpg 拼接（转换服务一般输出 jpg；个别 png 若识别失败可调整）
+    const id = file.replace(/\.img$/i, "");
+    imgUrl = `${base}/image/${id}.jpg`;
+    await new Promise((r) => setTimeout(r, 2000)); // 等转换脚本完成（约 2 秒）
+  } else {
+    try {
+      imgUrl = await geweCore.downloadImageFromCq(raw);
+    } catch (e) {
+      await s.reply(`取图失败：${String(e?.message || e).slice(0, 100)}`);
+      return;
+    }
   }
   if (!imgUrl) {
     await s.reply("未获取到图片地址");
