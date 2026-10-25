@@ -1,9 +1,9 @@
 // [title: AI 聊天助手]
 // [name: aiChat]
-// [desc: 接入任意 OpenAI 兼容接口的 AI 助手，内置 DeepSeek/智谱GLM/Kimi/MiniMax/通义Qwen 提供商预设。触发词：起床了绵绵 / mark / 小助手，消息任意位置出现即触发（大小写不敏感），其他命令走原插件不抢。支持 BaseURL/Key/模型/长系统提示词（变量插值）/上下文轮数/工具调用/思考模式控制（thinking 默认 off 关闭，语音回复场景无需思考）。v3.1 起会话记忆统一走 mm_chat_history，与 voiceChat/visionChat 共享上下文（发图识别后可直接追问图片内容）。v3.4 起工具统一由 aiToolCore 注册表提供（时间/天气/公网IP/Tavily 联网搜索），新增工具无需改本插件。]
+// [desc: 接入任意 OpenAI 兼容接口的 AI 助手，内置 DeepSeek/智谱GLM/Kimi/MiniMax/通义Qwen 提供商预设。触发词：柬单企业顾问（艾特/直呼均可）/ mark / 起床了绵绵 / 小春 / 小助手，消息任意位置出现即触发（大小写不敏感），其他命令走原插件不抢。注意 rule 用 raw 前缀避开 sillyGirl 的整串锚定（否则 @机器人 场景开头带 @ 会匹配不上）。支持 BaseURL/Key/模型/长系统提示词（变量插值）/上下文轮数/工具调用/思考模式控制（thinking 默认 off 关闭，语音回复场景无需思考）。v3.1 起会话记忆统一走 mm_chat_history，与 voiceChat/visionChat 共享上下文（发图识别后可直接追问图片内容）。v3.4 起工具统一由 aiToolCore 注册表提供（时间/天气/公网IP/Tavily 联网搜索），新增工具无需改本插件。]
 // [author: Mianpro官方]
-// [version: v3.5.4]
-// [rule: 起床了绵绵|mark|Mark|小助手]
+// [version: v3.5.5]
+// [rule: raw 柬单企业顾问|起床了绵绵|mark|Mark|小春|小助手]
 // [status: true]
 // [admin: false]
 // [public: true]
@@ -23,7 +23,7 @@ const geweCore = require("./geweCore.js");
 const MAX_CONTENT_LEN = 1500;
 
 // 触发词（任意位置命中）：起床了绵绵 / mark(不区分大小写) / 小助手
-const TRIGGER_RE = /起床了绵绵|mark|小助手/i;
+const TRIGGER_RE = /柬单企业顾问|起床了绵绵|mark|小春|小助手/i;
 
 const form = new plugin.Form({
   provider: plugin.Form.string()
@@ -310,10 +310,11 @@ async function main() {
   const chatId = String((await s.getChatId()) || "");
   const privateChat = isPrivateChat(chatId, userId);
 
-  // rule 已过滤：能走到这里说明消息中出现了触发词（起床了绵绵/mark/小助手），剥掉触发词后交给模型
+  // rule 已过滤：能走到这里说明消息中出现了触发词（柬单企业顾问/起床了绵绵/mark/小春/小助手），剥掉触发词后交给模型
+  // @ 前缀也要剥掉（艾特机器人时 Gewe content 带 "@昵称"）
   let promptText = rawContent
     .replace(TRIGGER_RE, "")
-    .replace(/^[，,、:：\s]+|[，,、:：\s]+$/g, "")
+    .replace(/^[@，,、:：\s]+|[，,、:：\s]+$/g, "")
     .trim();
 
   // 管理指令
