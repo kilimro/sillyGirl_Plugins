@@ -2,7 +2,7 @@
 // [name: groupSummary]
 // [desc: 持续记录群聊消息（仅群聊，私聊不记录），发"群聊总结"用 AI 生成当日精华总结报告（默认仅管理员可用）。支持文字/图片两种输出（图片用 MiniMax 画一张总结封面）。仅 gewe 平台可用；监控群在「白名单/定时总结群列表(schedule_groups)」里配置（格式 gewe:群ID,gewe:群ID），白名单外群不记录、不响应命令、不参与定时。定时推送统一由 Admin 面板「定时任务」触发（推荐 0 18 * * *），总结对象=白名单群，发送目标=任务 senders 配置的 ChatID（gewe:群ID=发群里 / gewe:个人wxid=发私聊），插件不再自带 cron 避免双入口重复推送，并有当日去重防重复。]
 // [author: Mianpro官方]
-// [version: v1.3.1]
+// [version: v1.3.2]
 // [rule: raw [\s\S]+]
 // [status: true]
 // [admin: false]
@@ -90,6 +90,10 @@ const form = new plugin.Form({
     .description("生成总结封面图的提示词，{topic} 会被替换为总结标题")
     .default("现代扁平插画风格，一群微信用户围坐在一起热烈讨论的群聊场景，手机屏幕上显示聊天记录和气泡，温暖明亮的色调，中央有标题「群聊精华总结」，简洁大气，适合作为聊天总结报告封面"),
   // ---- 定时总结（Admin 面板「定时任务」触发，senders 填要推送的群；不再自带 cron）----
+  schedule_target: plugin.Form.string()
+    .title("定时发送目标")
+    .description("定时总结发到哪：填 gewe:群ID 发群里，填 gewe:个人wxid 发私聊（如 gewe:wxid_xxxxx）。留空=用 Admin 定时任务的 senders 配置；两者都没配则不发送")
+    .default(""),
   schedule_groups: plugin.Form.string()
     .title("白名单/定时总结群列表")
     .description("逗号分隔 gewe:群ID，如 gewe:25897824478@chatroom,gewe:58618304989@chatroom。这些群=插件唯一生效范围（记录/命令/定时总结）。留空=gewe 下所有群可用")
@@ -340,10 +344,21 @@ async function runScheduled(cfg) {
   const platform = String((await s.getPlatform()) || "").toLowerCase();
   // 仅 gewe 平台
   if (platform !== ONLY_PLATFORM) return;
-  const sendTo = String((await s.getChatId()) || "").trim();
-  // 未在 Admin 任务里配置发送目标（senders）时静默跳过
+  // 发送目标：插件配置 schedule_target 优先（gewe:群ID=发群里 / gewe:个人wxid=发私聊），
+  // 留空则取 Admin 任务 senders 的 ChatID；两者都没有则跳过
+  let sendTo = "";
+  const cfgTarget = String(cfg.schedule_target || "").trim();
+  if (cfgTarget) {
+    const idx = cfgTarget.indexOf(":");
+    if (idx >= 0) {
+      const p = cfgTarget.slice(0, idx).trim().toLowerCase();
+      const cid = cfgTarget.slice(idx + 1).trim();
+      if (p === ONLY_PLATFORM && cid) sendTo = cid;
+    }
+  }
+  if (!sendTo) sendTo = String((await s.getChatId()) || "").trim();
   if (!sendTo) {
-    console.log("[groupSummary] 定时任务未配置发送目标(senders)，跳过本次推送");
+    console.log("[groupSummary] 定时任务未配置发送目标（插件 schedule_target 或 Admin senders），跳过本次推送");
     return;
   }
   const allow = await allowedChatIds(cfg);
