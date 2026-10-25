@@ -1,8 +1,8 @@
 // [title: 群聊总结]
 // [name: groupSummary]
-// [desc: 持续记录群聊消息（仅群聊，私聊不记录），发"群聊总结"用 AI 生成当日精华总结报告。支持文字/图片两种输出（图片用 MiniMax 画一张总结封面）。仅 gewe 平台可用；白名单群在「定时总结群列表(schedule_groups)」里配置（格式 gewe:群ID,gewe:群ID），白名单外群不记录、不响应命令、不参与定时。定时推送统一由 Admin 面板「定时任务」配置（推荐 0 18 * * *，senders 填要推送的群），插件不再自带 cron，避免双入口重复推送。]
+// [desc: 持续记录群聊消息（仅群聊，私聊不记录），发"群聊总结"用 AI 生成当日精华总结报告（默认仅管理员可用）。支持文字/图片两种输出（图片用 MiniMax 画一张总结封面）。仅 gewe 平台可用；监控群在「白名单/定时总结群列表(schedule_groups)」里配置（格式 gewe:群ID,gewe:群ID），白名单外群不记录、不响应命令、不参与定时。定时推送统一由 Admin 面板「定时任务」触发（推荐 0 18 * * *），总结对象=白名单群，发送目标=任务 senders 配置的 ChatID（gewe:群ID=发群里 / gewe:个人wxid=发私聊），插件不再自带 cron 避免双入口重复推送，并有当日去重防重复。]
 // [author: Mianpro官方]
-// [version: v1.3.0]
+// [version: v1.3.1]
 // [rule: raw [\s\S]+]
 // [status: true]
 // [admin: false]
@@ -56,6 +56,10 @@ const form = new plugin.Form({
     .min(10)
     .max(200)
     .default(50),
+  admin_only: plugin.Form.boolean()
+    .title("仅管理员可用")
+    .description("开启后只有管理员能发「总结群聊」命令（消息记录不受影响）。默认开启")
+    .default(true),
   max_stored: plugin.Form.number()
     .title("每群最大存储条数")
     .description("超过则清理最旧消息，防止膨胀")
@@ -260,6 +264,11 @@ async function main() {
   if (allow.size && !allow.has(chatId)) return s.resume();
   // 私聊不生效
   if (!chatId || chatId === userId) return s.reply("群聊总结仅在群聊中可用");
+  // 命令仅管理员可用（admin_only 默认 true）
+  if (cfg.admin_only !== false) {
+    const isAdmin = await s.isAdmin();
+    if (!isAdmin) return s.reply("仅管理员可触发群聊总结");
+  }
 
   const groupPrefix = `${platform}:${chatId}:`;
 
@@ -324,29 +333,26 @@ async function main() {
   }
 }
 
-// 定时总结：由 Admin 面板「定时任务」触发。两种模式：
-// ① Admin 任务 senders 配了群（推荐）→ 每个 sender 各 Handle 一次，本次只总结当前 Handle 对应的群（不重复）
-// ② senders 未配（targetChat 空）→ 总结 schedule_groups 白名单群；白名单空则自动找 gewe 下今天有消息的群
+// 定时总结：由 Admin 面板「定时任务」触发。
+// 总结对象 = schedule_groups 白名单群（每天监控这些群；白名单空则自动找 gewe 今天有消息的群）
+// 发送目标 = Admin 任务 senders 配置的 ChatID（填 gewe:群ID 发群里；填 gewe:个人wxid 发私聊）
 async function runScheduled(cfg) {
   const platform = String((await s.getPlatform()) || "").toLowerCase();
   // 仅 gewe 平台
   if (platform !== ONLY_PLATFORM) return;
+  const sendTo = String((await s.getChatId()) || "").trim();
+  // 未在 Admin 任务里配置发送目标（senders）时静默跳过
+  if (!sendTo) {
+    console.log("[groupSummary] 定时任务未配置发送目标(senders)，跳过本次推送");
+    return;
+  }
   const allow = await allowedChatIds(cfg);
-  const targetChat = String((await s.getChatId()) || "").trim();
 
+  // 总结群列表：白名单群优先；白名单空则自动找 gewe 下今天有消息的群
   let groups = [];
-  if (targetChat) {
-    // 模式①：Admin 任务 senders 指定单群（白名单非空时校验）
-    if (allow.size && !allow.has(targetChat)) {
-      console.log(`[groupSummary] 群 ${targetChat} 不在白名单，跳过本次推送`);
-      return;
-    }
-    groups = [targetChat];
-  } else if (allow.size) {
-    // 模式②：白名单即定时群列表
+  if (allow.size) {
     groups = [...allow];
   } else {
-    // 模式②-自动：gewe 下今天有消息的群
     const keys = await storeBucket.keys();
     const seen = new Set();
     for (const k of keys) {
@@ -373,7 +379,7 @@ async function runScheduled(cfg) {
       const prefix = `${platform}:${chatId}:`;
       const items = await readTodayMessages(prefix);
       if (!items.length) continue;
-      // 当日去重：同平台同群同一天只推一次（防 Admin 多 sender 重复 Handle）
+      // 当日去重：同群同一天只推一次（防 Admin 多 sender 重复 Handle / 定时与手动重触发）
       const dedupKey = `done:${platform}:${chatId}:${todayKey}`;
       try {
         if (await dedupBucket.get(dedupKey, "")) continue;
