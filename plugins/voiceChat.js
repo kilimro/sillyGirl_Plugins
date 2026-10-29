@@ -2,7 +2,7 @@
 // [name: voiceChat]
 // [desc: 仅 Gewe / yyw 平台可用。收到语音消息自动转文字并接入 AI 对话（复刻 aiChat 核心逻辑）。语音转文字（STT）与 AI 对话各自独立配置模型，内置 DeepSeek/智谱GLM/Kimi/MiniMax/通义Qwen 提供商预设，思考模式默认 off 关闭（语音回复场景无需思考）。支持系统提示词变量、上下文记忆、同人冷却、群白名单与语音回复（reply_mode=voice/text/mix，mix 按语音概率随机混合语音与文字，更有真人感）。Gewe 走 silk 解码链路；yyw 解析 [YW.voi] 拼接「yyw 媒体公网地址」的 wav 直转文字、语音回复直接发 [CQ:record] 公网 URL（无需 silk 转换），该地址只在本地配置不写入代码。v2.1 起会话记忆统一走 mm_chat_history，与 aiChat/visionChat 共享上下文（发图识别后可语音追问图片内容）。v2.3 起工具统一由 aiToolCore 注册表提供（时间/天气/公网IP/Tavily 联网搜索），与 aiChat 共享工具配置。]
 // [author: Mianpro官方]
-// [version: v2.4.0]
+// [version: v2.4.1]
 // [rule: raw ^\[(CQ:record|YW\.voi)[^\]]*\]$]
 // [status: true]
 // [admin: false]
@@ -23,6 +23,21 @@ const tts = require("./ttsCore.js");
 
 const COOLDOWN_BUCKET = "voice_chat_cooldown";
 const MAX_CONTENT_LEN = 1500;
+
+// 轮询等待媒体公网 URL 就绪：转换脚本有延迟（约2~3秒甚至更久），404/未就绪时每 1 秒重试，最长等 15 秒
+async function waitForMediaUrl(url, { timeoutMs = 15000, intervalMs = 1000 } = {}) {
+  const deadline = Date.now() + timeoutMs;
+  let lastStatus = 0;
+  while (Date.now() < deadline) {
+    try {
+      const res = await fetch(url, { signal: AbortSignal.timeout(5000) });
+      if (res.ok) return res;
+      lastStatus = res.status;
+    } catch (_) {}
+    await new Promise((r) => setTimeout(r, intervalMs));
+  }
+  throw new Error("媒体文件等待超时（HTTP " + (lastStatus || "无响应") + "）：" + url);
+}
 
 const form = new plugin.Form({
   // ===== 语音转文字（STT）=====
@@ -293,9 +308,7 @@ async function main() {
       if (!file) throw new Error("未解析到语音文件 ID");
       const id = file.replace(/\.voi$/i, "");
       const wavUrl = base + "/record/" + id + ".wav";
-      await new Promise((r) => setTimeout(r, 2000)); // 等转换脚本完成（约 2 秒）
-      const wavRes = await fetch(wavUrl, { signal: AbortSignal.timeout(Number(cfg.timeout) || 60000) });
-      if (!wavRes.ok) throw new Error("wav 下载 HTTP " + wavRes.status);
+      const wavRes = await waitForMediaUrl(wavUrl); // 轮询等转换脚本就绪（2~3秒或更久）
       wav = new Uint8Array(await wavRes.arrayBuffer());
     } else {
       const silkUrl = await geweCore.downloadVoiceFromCq(raw);

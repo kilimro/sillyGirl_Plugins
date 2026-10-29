@@ -2,7 +2,7 @@
 // [name: visionChat]
 // [desc: 仅 Gewe / yyw 平台、仅管理员可用。收到图片消息后调用多模态大模型识图并转成中文文字回复。基于 OpenAI 兼容 Chat Completions + image_url 多模态输入，默认 MiniMax-M3.1-Flash-Preview（M Plan 原生多模态，Key 自动读 ~/.mmx/config.json），也可配置其他支持 image_url 的厂商（GLM-4V / Qwen-VL / Kimi 等）。Gewe 走 CDN 下载；yyw 解析 [YW.img] 并拼接「yyw 媒体公网地址」公网图片 URL（脚本转换有约 2 秒延迟，已自动等待；该地址只在本地配置，不写入代码）。v1.1 起识图结果写入统一会话记忆 mm_chat_history，后续可直接用 aiChat / voiceChat 追问图片内容（只带识图文字描述，不带原图）。]
 // [author: Mianpro官方]
-// [version: v1.2.0]
+// [version: v1.2.1]
 // [rule: raw ^\[(CQ:image|YW\.img)[^\]]*\]$]
 // [status: true]
 // [admin: true]
@@ -23,6 +23,21 @@ const mm = require("./openaiChatCore.js");
 
 const API_TIMEOUT = 90000; // 多模态识别 90 秒超时
 const DEFAULT_BASE = "https://api.minimax.cn/v1";
+
+// 轮询等待媒体公网 URL 就绪：转换脚本有延迟（约2~3秒甚至更久），404/未就绪时每 1 秒重试，最长等 15 秒
+async function waitForMediaUrl(url, { timeoutMs = 15000, intervalMs = 1000 } = {}) {
+  const deadline = Date.now() + timeoutMs;
+  let lastStatus = 0;
+  while (Date.now() < deadline) {
+    try {
+      const res = await fetch(url, { signal: AbortSignal.timeout(5000) });
+      if (res.ok) return;
+      lastStatus = res.status;
+    } catch (_) {}
+    await new Promise((r) => setTimeout(r, intervalMs));
+  }
+  throw new Error("图片文件等待超时（HTTP " + (lastStatus || "无响应") + "）：" + url);
+}
 const DEFAULT_MODEL = "MiniMax-M3.1-Flash-Preview";
 
 const form = new plugin.Form({
@@ -167,7 +182,7 @@ async function main() {
     // 去掉 .img 扩展名，按 .jpg 拼接（转换服务一般输出 jpg；个别 png 若识别失败可调整）
     const id = file.replace(/\.img$/i, "");
     imgUrl = `${base}/image/${id}.jpg`;
-    await new Promise((r) => setTimeout(r, 2000)); // 等转换脚本完成（约 2 秒）
+    await waitForMediaUrl(imgUrl); // 轮询等转换脚本就绪（2~3秒或更久），就绪后才喂给识图 API
   } else {
     try {
       imgUrl = await geweCore.downloadImageFromCq(raw);
