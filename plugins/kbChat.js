@@ -2,7 +2,7 @@
 // [name: kbChat]
 // [desc: 接入微信对话开放平台（智能客服）企业知识库，像 aiChat 一样命中词触发（默认「文春/问答」，消息里任意位置出现即触发，换词直接改本行 rule），命中后剥词查知识库回复。额外带群白名单 kb_groups：只有白名单群内的命中词才响应（留空=所有群都响应）；私聊默认响应，可在配置里关闭（enable_private=false）。支持 FAQ / 深度思考（生成式回答带引用） / 富文本（图片、语音转 CQ 码）。知识库未命中时静默放行不打扰。凭证 appid/token/aes_key 均本地表单配置，不写入代码。]
 // [author: Mianpro官方]
-// [version: v1.2.1]
+// [version: v1.2.2]
 // [rule: raw 文春|问答]
 // [status: true]
 // [admin: false]
@@ -141,17 +141,24 @@ async function queryKb(cfg, query, nickname, userid) {
   return data.data;
 }
 
-// 拉取深度思考的生成式回答（generate_url 返回最终文本，剥掉 <think> 思考块）
+// 拉取深度思考的生成式回答。该接口返回一串首尾相连的 JSON 块：
+// {"request_id":...,"content":"片段","seq":1,...}{...,"seq":2,...}...{"is_end":true,...}
+// 逐块提取 content 字段、按出现顺序拼接，剥掉 <ref/> 引用标签与 <think> 思考块。
 async function fetchGenerate(url, timeoutMs) {
   const res = await fetch(url, { signal: AbortSignal.timeout(timeoutMs || 60000) });
   let text = await res.text();
-  let out = text.replace(/<think>[\s\S]*?<\/think>/g, "").trim();
-  const ctype = String(res.headers.get("content-type") || "");
-  if (ctype.includes("text/event-stream")) {
-    // SSE：拼接 data: 行
-    const lines = text.split("\n").filter((l) => l.startsWith("data:")).map((l) => l.slice(5).trim()).filter(Boolean);
-    if (lines.length) out = lines.join("").trim();
+  const parts = [];
+  const re = /"content"\s*:\s*"((?:\\.|[^"\\])*)"/g;
+  let m;
+  while ((m = re.exec(text)) !== null) {
+    try {
+      parts.push(JSON.parse('"' + m[1] + '"'));
+    } catch (_) {
+      parts.push(m[1]);
+    }
   }
+  let out = parts.join("");
+  out = out.replace(/<think>[\s\S]*?<\/think>/g, "").replace(/<ref[^>]*\/?>/g, "").trim();
   return out || text.trim();
 }
 

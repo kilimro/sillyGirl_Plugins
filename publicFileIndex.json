@@ -868,7 +868,7 @@
     "name": "kbChat",
     "title": "企业知识库对话",
     "author": "Mianpro官方",
-    "version": "v1.2.1",
+    "version": "v1.2.2",
     "desc": "接入微信对话开放平台（智能客服）企业知识库，像 aiChat 一样命中词触发（默认「文春/问答」，消息里任意位置出现即触发，换词直接改本行 rule），命中后剥词查知识库回复。额外带群白名单 kb_groups：只有白名单群内的命中词才响应（留空=所有群都响应）；私聊默认响应，可在配置里关闭（enable_private=false）。支持 FAQ / 深度思考（生成式回答带引用） / 富文本（图片、语音转 CQ 码）。知识库未命中时静默放行不打扰。凭证 appid/token/aes_key 均本地表单配置，不写入代码。",
     "icon": "https://res.wx.qq.com/mmspraiweb_node/dist/static/logo/logo180.png",
     "class": "大模型",
