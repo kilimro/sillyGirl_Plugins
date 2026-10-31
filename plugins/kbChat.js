@@ -2,7 +2,7 @@
 // [name: kbChat]
 // [desc: 接入微信对话开放平台（智能客服）企业知识库，像 aiChat 一样命中词触发（默认「文春/问答」，消息里任意位置出现即触发，换词直接改本行 rule），命中后剥词查知识库回复。额外带群白名单 kb_groups：只有白名单群内的命中词才响应（留空=所有群都响应）；私聊默认响应，可在配置里关闭（enable_private=false）。支持 FAQ / 深度思考（生成式回答带引用） / 富文本（图片、语音转 CQ 码）。知识库未命中时静默放行不打扰。凭证 appid/token/aes_key 均本地表单配置，不写入代码。]
 // [author: Mianpro官方]
-// [version: v1.2.0]
+// [version: v1.2.1]
 // [rule: raw 文春|问答]
 // [status: true]
 // [admin: false]
@@ -252,6 +252,7 @@ async function main() {
     const kbData = await queryKb(cfg, queryText, nickname, userid);
     const status = String(kbData.status || "");
     const answer = String(kbData.answer || "").trim();
+    console.log("[kbChat] query=" + queryText + " status=" + status + " answer前80字=" + answer.slice(0, 80));
 
     // 未命中：静默放行，不打扰
     if (status === "NOMATCH" || !answer) return s.resume();
@@ -277,8 +278,10 @@ async function main() {
         await s.reply(m.content);
       }
     }
-    return s.resume();
+    // 命中词已消费：回复后吞掉，不再传给后续插件（对齐 aiChat）
+    return;
   } catch (error) {
+    console.log("[kbChat] 查询异常: " + (error?.message || error));
     await s.reply("知识库查询失败：" + String(error?.message || error).slice(0, 120));
     return s.resume();
   }
