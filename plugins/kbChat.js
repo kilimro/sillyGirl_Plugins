@@ -1,9 +1,9 @@
 // [title: 企业知识库对话]
 // [name: kbChat]
-// [desc: 接入微信对话开放平台（智能客服）企业知识库，在配置的白名单群内自动按知识库内容回复，与提示词驱动的 aiChat 独立并行。白名单外插件完全无感（直接放行）。支持 FAQ / 意图 / 深度思考（生成式回答带引用） / 富文本（图片、语音转 CQ 码）。NOMATCH（知识库未命中）默认放行给 aiChat 等后续插件接话，也可回固定兜底话术。凭证 appid/token/aes_key 均本地表单配置，不写入代码。]
+// [desc: 接入微信对话开放平台（智能客服）企业知识库，像 aiChat 一样命中词触发（默认「文春/问答」，消息里任意位置出现即触发，换词直接改本行 rule），命中后剥词查知识库回复。额外带群白名单 kb_groups：只有白名单群内的命中词才响应（留空=所有群都响应）；私聊默认响应，可在配置里关闭（enable_private=false）。支持 FAQ / 深度思考（生成式回答带引用） / 富文本（图片、语音转 CQ 码）。知识库未命中时静默放行不打扰。凭证 appid/token/aes_key 均本地表单配置，不写入代码。]
 // [author: Mianpro官方]
-// [version: v1.1.0]
-// [rule: raw [\s\S]+]
+// [version: v1.2.0]
+// [rule: raw 文春|问答]
 // [status: true]
 // [admin: false]
 // [public: true]
@@ -19,6 +19,7 @@ const crypto = require("crypto");
 
 const API_BASE = "https://openaiapi.weixin.qq.com";
 const TOKEN_TTL = 2 * 60 * 60 * 1000 - 60 * 1000; // access_token 2h 有效，提前 1 分钟过期
+const TRIGGER_RE = /文春|问答/g; // 命中词，与头部 rule 保持一致（换词两边一起改）
 
 const form = new plugin.Form({
   // ---- 微信对话开放平台凭证（仅本地配置，不写入代码）----
@@ -37,25 +38,16 @@ const form = new plugin.Form({
     .description("用于对话请求/响应加解密，AES-256-CBC")
     .default("")
     .required(),
-  // ---- 生效范围（白名单群全自动）----
+  // ---- 生效范围 ----
   kb_groups: plugin.Form.string()
-    .title("白名单群（这些群自动查知识库）")
-    .description("逗号分隔的群 ID，如 gewe:25897824478@chatroom 或直接群ID。只有这些群内的消息会查知识库；其他群/私聊插件直接放行不接管。留空=插件不生效")
+    .title("群白名单（只有这些群响应命中词）")
+    .description("逗号分隔的群 ID，如 gewe:25897824478@chatroom 或直接群ID。群聊里只有白名单群响应命中词；留空=所有群都响应。私聊不受此限（由下面私聊开关控制）")
     .default(""),
-  // ---- 未命中处理 ----
-  nomatch_mode: plugin.Form.string()
-    .title("未命中处理")
-    .description("resume=放行给 aiChat 等后续插件接话（默认）；message=回复固定兜底话术")
-    .default("resume"),
-  nomatch_message: plugin.Form.string()
-    .title("兜底话术")
-    .description("nomatch_mode=message 时，知识库未命中回复的文案")
-    .default("抱歉，我暂时没有在知识库中找到答案，换个问法试试，或联系管理员~"),
-  // ---- 对话与输出 ----
-  env: plugin.Form.string()
-    .title("环境")
-    .description("online=线上（默认）；debug=测试环境")
-    .default("online"),
+  enable_private: plugin.Form.boolean()
+    .title("私聊响应")
+    .description("开启后私聊里命中词也会查知识库。默认开启")
+    .default(true),
+  // ---- 输出 ----
   show_ref: plugin.Form.boolean()
     .title("显示引用来源")
     .description("深度思考回答后附上引用文档（ref_docs），便于溯源。默认开启")
@@ -134,7 +126,7 @@ async function getAccessToken(cfg) {
 async function queryKb(cfg, query, nickname, userid) {
   const payload = {
     query,
-    env: String(cfg.env || "online").trim(),
+    env: "online",
     first_priority_skills: [],
     second_priority_skills: [],
     user_name: nickname || "",
@@ -209,7 +201,7 @@ function parseAnswer(answer) {
   return [{ type: "text", content: text }];
 }
 
-// 解析专属群白名单：支持 "gewe:群ID" 或裸群ID（任意平台）
+// 解析群白名单：支持 "gewe:群ID" 或裸群ID（任意平台）
 function parseKbGroups(str) {
   const set = new Set();
   for (const item of String(str || "").split(/[,，]/)) {
@@ -232,19 +224,27 @@ async function main() {
   if (botId && userId === botId) return s.resume();
   const isGroup = !!(chatId && chatId !== userId);
 
-  // 只处理白名单群；其他群/私聊直接放行给后续插件（aiChat / groupSummary 等）
-  const groups = parseKbGroups(cfg.kb_groups);
-  if (!groups.size) return s.resume();
-  const inKbGroup = isGroup && (groups.has(chatId) || groups.has(platform + ":" + chatId));
-  if (!inKbGroup) return s.resume();
+  // 生效范围：群聊需在白名单群（白名单留空=所有群）；私聊默认响应，可关
+  if (isGroup) {
+    const groups = parseKbGroups(cfg.kb_groups);
+    if (groups.size && !groups.has(chatId) && !groups.has(platform + ":" + chatId)) return s.resume();
+  } else if (cfg.enable_private === false) {
+    return s.resume();
+  }
 
-  // 凭证校验（缺配置时提示一次并放行，避免白名单群瘫痪）
+  // 凭证校验（缺配置时提示并放行，避免群瘫痪）
   if (!String(cfg.appid || "").trim() || !String(cfg.token || "").trim() || !String(cfg.aes_key || "").trim()) {
     await s.reply("企业知识库未配置：请在插件配置里填写 appid / token / aes_key");
     return s.resume();
   }
 
-  const queryText = raw;
+  // 剥命中词，剩余即问题文本（开头结尾都兼容）
+  const queryText = raw.replace(TRIGGER_RE, "").trim();
+  if (!queryText) {
+    await s.reply("请带上要问的问题，如：文春 报销流程是什么");
+    return s.resume();
+  }
+
   const nickname = String((await s.getUserName()) || userId);
   const userid = [platform, chatId || "dm", userId].join(":"); // 稳定用户ID，维持会话上下文
 
@@ -253,14 +253,8 @@ async function main() {
     const status = String(kbData.status || "");
     const answer = String(kbData.answer || "").trim();
 
-    // 未命中：按配置 resume（放行给 aiChat）或回兜底话术
-    if (status === "NOMATCH" || !answer) {
-      if (String(cfg.nomatch_mode || "resume") !== "message") {
-        return s.resume();
-      }
-      await s.reply(String(cfg.nomatch_message || "抱歉，我暂时没有在知识库中找到答案，换个问法试试，或联系管理员~"));
-      return s.resume();
-    }
+    // 未命中：静默放行，不打扰
+    if (status === "NOMATCH" || !answer) return s.resume();
 
     // 命中：解析并回复
     const msgs = parseAnswer(answer);
@@ -283,7 +277,6 @@ async function main() {
         await s.reply(m.content);
       }
     }
-    // 回复后放行：让 groupSummary 等中间件继续积累，也不阻塞 aiChat 链路
     return s.resume();
   } catch (error) {
     await s.reply("知识库查询失败：" + String(error?.message || error).slice(0, 120));
