@@ -1,8 +1,8 @@
 // [title: 企业知识库对话]
 // [name: kbChat]
-// [desc: 接入微信对话开放平台（智能客服）企业知识库，机器人按知识库内容回复，与提示词驱动的 aiChat 独立并行。双模式：①专属群全自动（kb_groups 白名单群内所有消息直接查知识库，无需口令，适合企业客服群）；②命中词命令（任意会话发「知识库 问题」触发，命中词可配 trigger_word）。支持 FAQ / 意图 / 深度思考（生成式回答带引用） / 富文本（图片、语音等转 CQ 码）。NOMATCH（知识库未命中）可配置：默认放行给 aiChat 等后续插件接话（nomatch_mode=resume），也可回固定兜底话术（nomatch_mode=message）。凭证 appid/token/aes_key 均本地表单配置，不写入代码。]
+// [desc: 接入微信对话开放平台（智能客服）企业知识库，在配置的白名单群内自动按知识库内容回复，与提示词驱动的 aiChat 独立并行。白名单外插件完全无感（直接放行）。支持 FAQ / 意图 / 深度思考（生成式回答带引用） / 富文本（图片、语音转 CQ 码）。NOMATCH（知识库未命中）默认放行给 aiChat 等后续插件接话，也可回固定兜底话术。凭证 appid/token/aes_key 均本地表单配置，不写入代码。]
 // [author: Mianpro官方]
-// [version: v1.0.0]
+// [version: v1.1.0]
 // [rule: raw [\s\S]+]
 // [status: true]
 // [admin: false]
@@ -37,23 +37,11 @@ const form = new plugin.Form({
     .description("用于对话请求/响应加解密，AES-256-CBC")
     .default("")
     .required(),
-  // ---- 触发与范围 ----
-  trigger_word: plugin.Form.string()
-    .title("命中词（命令模式）")
-    .description("任意会话发「命中词 + 问题」触发，如「知识库 报销流程是什么」。默认：知识库")
-    .default("知识库"),
+  // ---- 生效范围（白名单群全自动）----
   kb_groups: plugin.Form.string()
-    .title("专属群白名单（全自动模式）")
-    .description("逗号分隔的群 ID，如 gewe:25897824478@chatroom 或直接群ID。这些群内所有消息自动查知识库，不用喊命中词。留空=关闭全自动模式，仅命中词命令可用")
+    .title("白名单群（这些群自动查知识库）")
+    .description("逗号分隔的群 ID，如 gewe:25897824478@chatroom 或直接群ID。只有这些群内的消息会查知识库；其他群/私聊插件直接放行不接管。留空=插件不生效")
     .default(""),
-  command_enabled: plugin.Form.boolean()
-    .title("命令模式开关")
-    .description("关闭后命中词命令不生效（仅专属群全自动）。默认开启")
-    .default(true),
-  admin_only: plugin.Form.boolean()
-    .title("命令仅管理员可用")
-    .description("开启后只有管理员能用命中词命令（专属群全自动不受影响）。默认关闭")
-    .default(false),
   // ---- 未命中处理 ----
   nomatch_mode: plugin.Form.string()
     .title("未命中处理")
@@ -244,39 +232,19 @@ async function main() {
   if (botId && userId === botId) return s.resume();
   const isGroup = !!(chatId && chatId !== userId);
 
-  // 双模式判定
+  // 只处理白名单群；其他群/私聊直接放行给后续插件（aiChat / groupSummary 等）
   const groups = parseKbGroups(cfg.kb_groups);
-  const inKbGroup = groups.size
-    ? isGroup && (groups.has(chatId) || groups.has(platform + ":" + chatId))
-    : false;
-  const trigger = String(cfg.trigger_word || "知识库").trim();
-  const isCommand =
-    cfg.command_enabled !== false &&
-    !!trigger &&
-    raw.startsWith(trigger) &&
-    (raw.length === trigger.length || /^[ \t\u3000]/.test(raw.slice(trigger.length)));
-  if (!inKbGroup && !isCommand) return s.resume();
+  if (!groups.size) return s.resume();
+  const inKbGroup = isGroup && (groups.has(chatId) || groups.has(platform + ":" + chatId));
+  if (!inKbGroup) return s.resume();
 
-  // 命令模式：剥词得问题
-  let queryText = raw;
-  if (isCommand) {
-    if (cfg.admin_only) {
-      const isAdmin = await s.isAdmin();
-      if (!isAdmin) return s.resume(); // 非管理员命令放行，不吞
-    }
-    queryText = raw.slice(trigger.length).replace(/^[ \t\u3000]+/, "").trim();
-    if (!queryText) {
-      await s.reply("请带上要查询的问题，如：" + trigger + " 报销流程是什么");
-      return;
-    }
-  }
-
-  // 凭证校验（缺配置时提示并放行，避免专属群瘫痪）
+  // 凭证校验（缺配置时提示一次并放行，避免白名单群瘫痪）
   if (!String(cfg.appid || "").trim() || !String(cfg.token || "").trim() || !String(cfg.aes_key || "").trim()) {
     await s.reply("企业知识库未配置：请在插件配置里填写 appid / token / aes_key");
     return s.resume();
   }
 
+  const queryText = raw;
   const nickname = String((await s.getUserName()) || userId);
   const userid = [platform, chatId || "dm", userId].join(":"); // 稳定用户ID，维持会话上下文
 
@@ -291,7 +259,7 @@ async function main() {
         return s.resume();
       }
       await s.reply(String(cfg.nomatch_message || "抱歉，我暂时没有在知识库中找到答案，换个问法试试，或联系管理员~"));
-      return isCommand ? undefined : s.resume();
+      return s.resume();
     }
 
     // 命中：解析并回复
@@ -315,11 +283,11 @@ async function main() {
         await s.reply(m.content);
       }
     }
-    // 专属群自动模式回复后放行，让 groupSummary 等中间件正常积累消息；命令模式吞掉
-    return isCommand ? undefined : s.resume();
+    // 回复后放行：让 groupSummary 等中间件继续积累，也不阻塞 aiChat 链路
+    return s.resume();
   } catch (error) {
     await s.reply("知识库查询失败：" + String(error?.message || error).slice(0, 120));
-    return isCommand ? undefined : s.resume();
+    return s.resume();
   }
 }
 
