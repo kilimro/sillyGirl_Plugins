@@ -1,8 +1,8 @@
 // [title: AI 聊天助手]
 // [name: aiChat]
-// [desc: 接入任意 OpenAI 兼容接口的 AI 助手，内置 DeepSeek/智谱GLM/Kimi/MiniMax/通义Qwen 提供商预设。触发词：柬单企业顾问（艾特/直呼均可）/ mark / 起床了绵绵 / 小春 / 小助手，消息任意位置出现即触发（大小写不敏感），其他命令走原插件不抢。注意 rule 用 raw 前缀避开 sillyGirl 的整串锚定（否则 @机器人 场景开头带 @ 会匹配不上）。支持 BaseURL/Key/模型/长系统提示词（变量插值）/上下文轮数/工具调用/思考模式控制（thinking 默认 off 关闭，语音回复场景无需思考）。v3.1 起会话记忆统一走 mm_chat_history，与 voiceChat/visionChat 共享上下文（发图识别后可直接追问图片内容）。v3.4 起工具统一由 aiToolCore 注册表提供（时间/天气/公网IP/Tavily 联网搜索），新增工具无需改本插件。v3.5.6 起支持多模态：群里发图+@机器人直接看图说话（yyw 拼公网图片 URL / gewe 走 CDN，需填 yyw 媒体公网地址，和 visionChat 共享）。v3.5.7 修复纯发图+触发词（无附带文字）时直接 return 不走模型的问题。v3.5.8 兼容 gewe 引用图片回复：从原始 XML 里直接提取 cdnurl 公网图片地址，并剥除 XML 残留。v3.5.9 改为先调识图模型把图片转文字描述再拼进对话（兼容纯文本对话模型，不再直接传 image_url）。]
+// [desc: 接入任意 OpenAI 兼容接口的 AI 助手，内置 DeepSeek/智谱GLM/Kimi/MiniMax/通义Qwen 提供商预设。触发词：柬单企业顾问（艾特/直呼均可）/ mark / 起床了绵绵 / 小春 / 小助手，消息任意位置出现即触发（大小写不敏感），其他命令走原插件不抢。注意 rule 用 raw 前缀避开 sillyGirl 的整串锚定（否则 @机器人 场景开头带 @ 会匹配不上）。支持 BaseURL/Key/模型/长系统提示词（变量插值）/上下文轮数/工具调用/思考模式控制（thinking 默认 off 关闭，语音回复场景无需思考）。v3.1 起会话记忆统一走 mm_chat_history，与 voiceChat/visionChat 共享上下文（发图识别后可直接追问图片内容）。v3.4 起工具统一由 aiToolCore 注册表提供（时间/天气/公网IP/Tavily 联网搜索），新增工具无需改本插件。v3.5.6 起支持多模态：群里发图+@机器人直接看图说话（yyw 拼公网图片 URL / gewe 走 CDN，需填 yyw 媒体公网地址，和 visionChat 共享）。v3.5.7 修复纯发图+触发词（无附带文字）时直接 return 不走模型的问题。v3.5.8 兼容 gewe 引用图片回复：从原始 XML 里直接提取 cdnurl 公网图片地址，并剥除 XML 残留。v3.5.9 改为先调识图模型把图片转文字描述再拼进对话（兼容纯文本对话模型，不再直接传 image_url）。v3.5.10 加严格图片标记判断（CQ:image / YW.img / refermsg里的img标签），只有确认有图才识图，普通对话零干扰；加调试日志方便排查。]
 // [author: Mianpro官方]
-// [version: v3.5.9]
+// [version: v3.5.10]
 // [rule: raw 柬单企业顾问|起床了绵绵|mark|Mark|小春|小助手]
 // [status: true]
 // [admin: false]
@@ -298,8 +298,25 @@ async function waitForMediaUrl(url, timeoutMs = 15000) {
   throw new Error("图片公网地址等待超时");
 }
 
-// 从消息原文提取图片公网 URL（yyw 拼公网 / gewe 走 CDN 下载），提取不到返回空串
+// 判断消息里是否确实包含图片标记（只有确认有图才走识图，普通对话绝不打扰）
+function hasImageMark(raw, platform) {
+  if (platform === "yyw") return /\[YW\.img[,\]]/i.test(raw);
+  if (platform === "gewe") {
+    // 标准 CQ:image 格式
+    if (/\[CQ:image[,\]]/i.test(raw)) return true;
+    // 引用消息里的 <refermsg> 块中包含 <img 标签
+    const referMatch = raw.match(/<refermsg[^>]*>([\s\S]*?)<\/refermsg>/i);
+    if (referMatch && /<img[\s>]/i.test(referMatch[1])) return true;
+    return false;
+  }
+  return false;
+}
+
+// 从消息原文提取图片公网 URL（yyw 拼公网 / gewe 走 CDN），提取不到返回空串
 async function extractImageUrl(rawContent, platform) {
+  if (!hasImageMark(rawContent, platform)) return "";
+  console.log(`[aiChat] 检测到图片标记，开始提取URL，raw前200字: ${rawContent.slice(0, 200)}`);
+
   if (platform === "yyw") {
     const base = String(cfg.yyw_media_base || "").trim().replace(/\/+$/, "");
     if (!base) return "";
@@ -311,15 +328,18 @@ async function extractImageUrl(rawContent, platform) {
     return url;
   }
   if (platform === "gewe") {
-    // 先试标准 CQ:image 格式
+    // 1. 标准 CQ:image 格式（直接发图）
     try {
       const url = await geweCore.downloadImageFromCq(rawContent);
       if (url) return url;
     } catch (_) {}
-    // 再试引用消息里的原始 XML（cdnurl="..." 或 <cdnurl>...</cdnurl>）
-    const cdnMatch =
-      rawContent.match(/cdnurl="([^"]+)"/i) || rawContent.match(/<cdnurl[^>]*>([^<]+)<\/cdnurl>/i);
-    if (cdnMatch && /^https?:\/\//i.test(cdnMatch[1])) return cdnMatch[1];
+    // 2. 引用消息：从 <refermsg> 块里的 <img> 标签提取 cdnurl
+    const referMatch = rawContent.match(/<refermsg[^>]*>([\s\S]*?)<\/refermsg>/i);
+    if (referMatch) {
+      const imgBlock = referMatch[1];
+      const cdnMatch = imgBlock.match(/cdnurl="([^"]+)"/i) || imgBlock.match(/<cdnurl[^>]*>([^<]+)<\/cdnurl>/i);
+      if (cdnMatch && /^https?:\/\//i.test(cdnMatch[1])) return cdnMatch[1];
+    }
     return "";
   }
   return "";
