@@ -1,8 +1,8 @@
 // [title: AI 聊天助手]
 // [name: aiChat]
-// [desc: 接入任意 OpenAI 兼容接口的 AI 助手，内置 DeepSeek/智谱GLM/Kimi/MiniMax/通义Qwen 提供商预设。触发词：柬单企业顾问（艾特/直呼均可）/ mark / 起床了绵绵 / 小春 / 小助手，消息任意位置出现即触发（大小写不敏感），其他命令走原插件不抢。注意 rule 用 raw 前缀避开 sillyGirl 的整串锚定（否则 @机器人 场景开头带 @ 会匹配不上）。支持 BaseURL/Key/模型/长系统提示词（变量插值）/上下文轮数/工具调用/思考模式控制（thinking 默认 off 关闭，语音回复场景无需思考）。v3.1 起会话记忆统一走 mm_chat_history，与 voiceChat/visionChat 共享上下文（发图识别后可直接追问图片内容）。v3.4 起工具统一由 aiToolCore 注册表提供（时间/天气/公网IP/Tavily 联网搜索），新增工具无需改本插件。v3.5.6 起支持多模态：群里发图+@机器人直接看图说话（yyw 拼公网图片 URL / gewe 走 CDN，需填 yyw 媒体公网地址，和 visionChat 共享）。v3.5.7 修复纯发图+触发词（无附带文字）时直接 return 不走模型的问题。v3.5.8 兼容 gewe 引用图片回复：从原始 XML 里直接提取 cdnurl 公网图片地址，并剥除 XML 残留。v3.5.9 改为先调识图模型把图片转文字描述再拼进对话（兼容纯文本对话模型，不再直接传 image_url）。v3.5.10 加严格图片标记判断（CQ:image / YW.img / refermsg里的img标签），只有确认有图才识图，普通对话零干扰；加调试日志方便排查。]
+// [desc: 接入任意 OpenAI 兼容接口的 AI 助手，内置 DeepSeek/智谱GLM/Kimi/MiniMax/通义Qwen 提供商预设。触发词：柬单企业顾问（艾特/直呼均可）/ mark / 起床了绵绵 / 小春 / 小助手，消息任意位置出现即触发（大小写不敏感），其他命令走原插件不抢。注意 rule 用 raw 前缀避开 sillyGirl 的整串锚定（否则 @机器人 场景开头带 @ 会匹配不上）。支持 BaseURL/Key/模型/长系统提示词（变量插值）/上下文轮数/工具调用/思考模式控制（thinking 默认 off 关闭，语音回复场景无需思考）。v3.1 起会话记忆统一走 mm_chat_history，与 voiceChat/visionChat 共享上下文（发图识别后可直接追问图片内容）。v3.4 起工具统一由 aiToolCore 注册表提供（时间/天气/公网IP/Tavily 联网搜索），新增工具无需改本插件。v3.5.6 起支持多模态：群里发图+@机器人直接看图说话（yyw 拼公网图片 URL / gewe 走 CDN，需填 yyw 媒体公网地址，和 visionChat 共享）。v3.5.7 修复纯发图+触发词（无附带文字）时直接 return 不走模型的问题。v3.5.8 兼容 gewe 引用图片回复：从原始 XML 里直接提取 cdnurl 公网图片地址，并剥除 XML 残留。v3.5.9 改为先调识图模型把图片转文字描述再拼进对话（兼容纯文本对话模型，不再直接传 image_url）。v3.5.10 加严格图片标记判断（CQ:image / YW.img / refermsg里的img标签），只有确认有图才识图，普通对话零干扰；加调试日志方便排查。v3.5.11 识图改用独立多模态模型配置（默认 MiniMax，读 ~/.mmx/config.json，和 visionChat 共用），对话模型不需要支持多模态。]
 // [author: Mianpro官方]
-// [version: v3.5.10]
+// [version: v3.5.11]
 // [rule: raw 柬单企业顾问|起床了绵绵|mark|Mark|小春|小助手]
 // [status: true]
 // [admin: false]
@@ -131,6 +131,19 @@ const form = new plugin.Form({
   yyw_media_base: plugin.Form.string()
     .title("yyw 媒体公网地址（看图用）")
     .description("yyw 平台发图时拼公网图片 URL 用，如 http://你的服务器:端口（不含末尾斜杠）。和 visionChat 同一份配置；留空=yyw 平台发图无法识别")
+    .default(""),
+  vision_base_url: plugin.Form.string()
+    .title("识图模型 BaseURL（可选）")
+    .description("发图时用的多模态识图模型地址。留空默认 MiniMax（https://api.minimax.cn/v1），自动读 ~/.mmx/config.json 的 Key")
+    .default(""),
+  vision_api_key: plugin.Form.string()
+    .title("识图模型 API Key（可选）")
+    .description("多模态识图模型的 Key。留空自动读 ~/.mmx/config.json 的 MiniMax Key（和 visionChat 共用）。对话模型不需要支持多模态")
+    .format("password")
+    .default(""),
+  vision_model: plugin.Form.string()
+    .title("识图模型名（可选）")
+    .description("多模态识图模型名。留空默认 MiniMax-M3.1-Flash-Preview；其他支持 image_url 的模型如 glm-4v / qwen-vl-plus 均可")
     .default(""),
 });
 
@@ -345,18 +358,37 @@ async function extractImageUrl(rawContent, platform) {
   return "";
 }
 
-// 先用多模态模型把图片转成文字描述（再把描述拼进对话，兼容纯文本对话模型）
+// 读 ~/.mmx/config.json 的 MiniMax Key（和 visionChat 共用，用户已配过）
+function readMmxApiKey() {
+  try {
+    const os = require("os");
+    const fs = require("fs");
+    const path = require("path");
+    const p = path.join(os.homedir(), ".mmx", "config.json");
+    if (!fs.existsSync(p)) return "";
+    const data = JSON.parse(fs.readFileSync(p, "utf-8"));
+    return String(data?.apiKey || data?.api_key || data?.token || "").trim();
+  } catch (_) {
+    return "";
+  }
+}
+
+// 用独立的多模态模型识图（不依赖对话模型是否支持多模态），把图片转成文字描述
 async function visionDescribe(imgUrl) {
-  const key = resolvedChat.apiKey;
-  if (!key) throw new Error("未配置 API Key，无法识图");
+  // 优先用 aiChat form 里填的识图配置，留空则默认 MiniMax（读 ~/.mmx/config.json）
+  const base = String(cfg.vision_base_url || "").trim().replace(/\/+$/, "") || "https://api.minimax.cn/v1";
+  const key = String(cfg.vision_api_key || "").trim() || readMmxApiKey();
+  const model = String(cfg.vision_model || "").trim() || "MiniMax-M3.1-Flash-Preview";
+  if (!key) throw new Error("未找到识图API Key：请填 vision_api_key，或先 mmx auth login");
+
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 30000);
   try {
-    const res = await fetch(`${resolvedChat.baseUrl}/chat/completions`, {
+    const res = await fetch(`${base}/chat/completions`, {
       method: "POST",
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${key}` },
       body: JSON.stringify({
-        model: resolvedChat.model,
+        model,
         messages: [{
           role: "user",
           content: [
@@ -364,11 +396,11 @@ async function visionDescribe(imgUrl) {
             { type: "image_url", image_url: { url: imgUrl, detail: "low" } },
           ],
         }],
-        max_tokens: 200,
+        max_completion_tokens: 200,
       }),
       signal: controller.signal,
     });
-    if (!res.ok) throw new Error(`识图HTTP ${res.status}`);
+    if (!res.ok) throw new Error(`识图HTTP ${res.status}: ${(await res.text()).slice(0, 100)}`);
     const data = await res.json();
     return String(data?.choices?.[0]?.message?.content || "").trim();
   } finally {
