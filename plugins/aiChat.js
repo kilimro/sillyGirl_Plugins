@@ -1,8 +1,8 @@
 // [title: AI 聊天助手]
 // [name: aiChat]
-// [desc: 接入任意 OpenAI 兼容接口的 AI 助手，内置 DeepSeek/智谱GLM/Kimi/MiniMax/通义Qwen 提供商预设。触发词：柬单企业顾问（艾特/直呼均可）/ mark / 起床了绵绵 / 小春 / 小助手，消息任意位置出现即触发（大小写不敏感），其他命令走原插件不抢。注意 rule 用 raw 前缀避开 sillyGirl 的整串锚定（否则 @机器人 场景开头带 @ 会匹配不上）。支持 BaseURL/Key/模型/长系统提示词（变量插值）/上下文轮数/工具调用/思考模式控制（thinking 默认 off 关闭，语音回复场景无需思考）。v3.1 起会话记忆统一走 mm_chat_history，与 voiceChat/visionChat 共享上下文（发图识别后可直接追问图片内容）。v3.4 起工具统一由 aiToolCore 注册表提供（时间/天气/公网IP/Tavily 联网搜索），新增工具无需改本插件。v3.5.6 起支持多模态：群里发图+@机器人直接看图说话（yyw 拼公网图片 URL / gewe 走 CDN，需填 yyw 媒体公网地址，和 visionChat 共享）。]
+// [desc: 接入任意 OpenAI 兼容接口的 AI 助手，内置 DeepSeek/智谱GLM/Kimi/MiniMax/通义Qwen 提供商预设。触发词：柬单企业顾问（艾特/直呼均可）/ mark / 起床了绵绵 / 小春 / 小助手，消息任意位置出现即触发（大小写不敏感），其他命令走原插件不抢。注意 rule 用 raw 前缀避开 sillyGirl 的整串锚定（否则 @机器人 场景开头带 @ 会匹配不上）。支持 BaseURL/Key/模型/长系统提示词（变量插值）/上下文轮数/工具调用/思考模式控制（thinking 默认 off 关闭，语音回复场景无需思考）。v3.1 起会话记忆统一走 mm_chat_history，与 voiceChat/visionChat 共享上下文（发图识别后可直接追问图片内容）。v3.4 起工具统一由 aiToolCore 注册表提供（时间/天气/公网IP/Tavily 联网搜索），新增工具无需改本插件。v3.5.6 起支持多模态：群里发图+@机器人直接看图说话（yyw 拼公网图片 URL / gewe 走 CDN，需填 yyw 媒体公网地址，和 visionChat 共享）。v3.5.7 修复纯发图+触发词（无附带文字）时直接 return 不走模型的问题。]
 // [author: Mianpro官方]
-// [version: v3.5.6]
+// [version: v3.5.7]
 // [rule: raw 柬单企业顾问|起床了绵绵|mark|Mark|小春|小助手]
 // [status: true]
 // [admin: false]
@@ -393,7 +393,7 @@ async function main() {
   if (!resolvedChat.apiKey) return;
   if (privateChat && !cfg.enable_private) return;
   if (!privateChat && !cfg.enable_group) return;
-  if (!promptText) return; // 只发了个"ai"，等用户补内容
+  if (!promptText && !imgUrl) return; // 只发了个"ai"，等用户补内容
 
   const now = new Date();
   const weekdays = ["日", "一", "二", "三", "四", "五", "六"];
