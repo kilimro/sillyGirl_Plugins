@@ -1,8 +1,8 @@
 // [title: AI 聊天助手]
 // [name: aiChat]
-// [desc: 接入任意 OpenAI 兼容接口的 AI 助手，内置 DeepSeek/智谱GLM/Kimi/MiniMax/通义Qwen 提供商预设。触发词：柬单企业顾问（艾特/直呼均可）/ mark / 起床了绵绵 / 小春 / 小助手，消息任意位置出现即触发（大小写不敏感），其他命令走原插件不抢。注意 rule 用 raw 前缀避开 sillyGirl 的整串锚定（否则 @机器人 场景开头带 @ 会匹配不上）。支持 BaseURL/Key/模型/长系统提示词（变量插值）/上下文轮数/工具调用/思考模式控制（thinking 默认 off 关闭，语音回复场景无需思考）。v3.1 起会话记忆统一走 mm_chat_history，与 voiceChat/visionChat 共享上下文（发图识别后可直接追问图片内容）。v3.4 起工具统一由 aiToolCore 注册表提供（时间/天气/公网IP/Tavily 联网搜索），新增工具无需改本插件。v3.5.6 起支持多模态：群里发图+@机器人直接看图说话（yyw 拼公网图片 URL / gewe 走 CDN，需填 yyw 媒体公网地址，和 visionChat 共享）。v3.5.7 修复纯发图+触发词（无附带文字）时直接 return 不走模型的问题。v3.5.8 兼容 gewe 引用图片回复：从原始 XML 里直接提取 cdnurl 公网图片地址，并剥除 XML 残留。v3.5.9 改为先调识图模型把图片转文字描述再拼进对话（兼容纯文本对话模型，不再直接传 image_url）。v3.5.10 加严格图片标记判断（CQ:image / YW.img / refermsg里的img标签），只有确认有图才识图，普通对话零干扰；加调试日志方便排查。v3.5.11 识图改用独立多模态模型配置（默认 MiniMax，读 ~/.mmx/config.json，和 visionChat 共用），对话模型不需要支持多模态。]
+// [desc: 接入任意 OpenAI 兼容接口的 AI 助手，内置 DeepSeek/智谱GLM/Kimi/MiniMax/通义Qwen 提供商预设。触发词：柬单企业顾问（艾特/直呼均可）/ mark / 起床了绵绵 / 小春 / 小助手，消息任意位置出现即触发（大小写不敏感），其他命令走原插件不抢。注意 rule 用 raw 前缀避开 sillyGirl 的整串锚定（否则 @机器人 场景开头带 @ 会匹配不上）。支持 BaseURL/Key/模型/长系统提示词（变量插值）/上下文轮数/工具调用/思考模式控制（thinking 默认 off 关闭，语音回复场景无需思考）。v3.1 起会话记忆统一走 mm_chat_history，与 voiceChat/visionChat 共享上下文（发图识别后可直接追问图片内容）。v3.4 起工具统一由 aiToolCore 注册表提供（时间/天气/公网IP/Tavily 联网搜索），新增工具无需改本插件。v3.5.6 起支持多模态：群里发图+@机器人直接看图说话（yyw 拼公网图片 URL / gewe 走 CDN，需填 yyw 媒体公网地址，和 visionChat 共享）。v3.5.7 修复纯发图+触发词（无附带文字）时直接 return 不走模型的问题。v3.5.8 兼容 gewe 引用图片回复：从原始 XML 里直接提取 cdnurl 公网图片地址，并剥除 XML 残留。v3.5.9 改为先调识图模型把图片转文字描述再拼进对话（兼容纯文本对话模型，不再直接传 image_url）。v3.5.10 加严格图片标记判断（CQ:image / YW.img / refermsg里的img标签），只有确认有图才识图，普通对话零干扰；加调试日志方便排查。v3.5.11 识图改用独立多模态模型配置（默认 MiniMax，读 ~/.mmx/config.json，和 visionChat 共用），对话模型不需要支持多模态。v3.5.12 修复 gewe 引用图片：从 refermsg XML 里完整提取 cdnurl+aeskey+size+suffix，调 downloadCdn 换真实公网图片 URL（之前直接把 cdnurl 当图片URL用，实际是加密CDN标识）。]
 // [author: Mianpro官方]
-// [version: v3.5.11]
+// [version: v3.5.12]
 // [rule: raw 柬单企业顾问|起床了绵绵|mark|Mark|小春|小助手]
 // [status: true]
 // [admin: false]
@@ -341,17 +341,30 @@ async function extractImageUrl(rawContent, platform) {
     return url;
   }
   if (platform === "gewe") {
-    // 1. 标准 CQ:image 格式（直接发图）
+    // 1. 标准 CQ:image 格式（直接发图，参数齐全）
     try {
       const url = await geweCore.downloadImageFromCq(rawContent);
       if (url) return url;
     } catch (_) {}
-    // 2. 引用消息：从 <refermsg> 块里的 <img> 标签提取 cdnurl
+    // 2. 引用消息：从 <refermsg> 块里完整提取 cdnurl + aeskey + size + suffix，调 downloadCdn 换真URL
     const referMatch = rawContent.match(/<refermsg[^>]*>([\s\S]*?)<\/refermsg>/i);
     if (referMatch) {
-      const imgBlock = referMatch[1];
-      const cdnMatch = imgBlock.match(/cdnurl="([^"]+)"/i) || imgBlock.match(/<cdnurl[^>]*>([^<]+)<\/cdnurl>/i);
-      if (cdnMatch && /^https?:\/\//i.test(cdnMatch[1])) return cdnMatch[1];
+      const block = referMatch[1];
+      const cdnMatch = block.match(/cdnurl="([^"]+)"/i) || block.match(/<cdnurl[^>]*>([^<]+)<\/cdnurl>/i);
+      if (cdnMatch) {
+        const fileId = cdnMatch[1].trim();
+        const aeskey = (block.match(/aeskey="([^"]+)"/i) || [])[1] || (block.match(/<aeskey[^>]*>([^<]+)<\/aeskey>/i) || [])[1] || "";
+        const size = (block.match(/total_?size="?(\d+)"?/i) || [])[1] || (block.match(/<total_?size[^>]*>([^<]+)<\/total_?size>/i) || [])[1] || "0";
+        const suffix = (block.match(/suffix="?(\w+)"?/i) || [])[1] || "jpg";
+        console.log(`[aiChat] 引用图片参数: fileId=${fileId.slice(0,40)}... aeskey=${aeskey.slice(0,20)}... size=${size} suffix=${suffix}`);
+        // cdnurl 如果已经是 http 开头，直接用；否则当 fileId 调 downloadCdn
+        if (/^https?:\/\//i.test(fileId)) return fileId;
+        try {
+          return await geweCore.downloadCdn({ fileId, aesKey: aeskey, size, suffix, type: 2 });
+        } catch (e) {
+          console.log(`[aiChat] downloadCdn失败: ${e?.message || e}`);
+        }
+      }
     }
     return "";
   }
