@@ -1,8 +1,8 @@
 // [title: Gewe机器人公共模块]
 // [name: geweCore]
-// [desc: 仅供 Gewe 平台机器人使用的公共依赖模块。从 gewe 桶读取 api_base/app_id/token（后台已接入，无需用户重复填写），封装 Gewe 消息与联系人 API：发语音、发图片、发小程序、发名片、发链接、发文件、发 appmsg、获取简要信息、搜索联系人、获取个人资料；并支持解析适配器输出的扩展 CQ 码，按需调用 downloadCdn/downloadVoice 下载图片/视频/文件/语音。后续可扩展其它 Gewe 独有接口。v1.6.1: downloadImageFromCq 兼容 file 字段已是公网 URL 的情况（适配器直接透传 cdnurl 时不再误调 downloadCdn）。]
+// [desc: 仅供 Gewe 平台机器人使用的公共依赖模块。从 gewe 桶读取 api_base/app_id/token（后台已接入，无需用户重复填写），封装 Gewe 消息与联系人 API：发语音、发图片、发小程序、发名片、发链接、发文件、发 appmsg、获取简要信息、搜索联系人、获取个人资料；并支持解析适配器输出的扩展 CQ 码，按需调用 downloadCdn/downloadVoice 下载图片/视频/文件/语音。后续可扩展其它 Gewe 独有接口。非 Gewe 平台插件请勿引用。]
 // [author: Mianpro官方]
-// [version: v1.6.1]
+// [version: v1.6.0]
 // [status: true]
 // [admin: false]
 // [public: true]
@@ -387,8 +387,6 @@ async function downloadVoice({ msgId, xml }) {
 async function downloadImageFromCq(text, type = 2) {
   const parsed = parseImageCq(text);
   if (!parsed) throw new Error("downloadImageFromCq: 消息里没有 Gewe 图片 CQ 码");
-  // file 字段可能已经是公网 URL（适配器直接透传 cdnurl），此时无需再调 downloadCdn
-  if (/^https?:\/\//i.test(parsed.fileId)) return parsed.fileId;
   return downloadCdn({ ...parsed, type });
 }
 

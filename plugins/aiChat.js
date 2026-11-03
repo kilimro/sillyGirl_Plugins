@@ -1,8 +1,8 @@
 // [title: AI 聊天助手]
 // [name: aiChat]
-// [desc: 接入任意 OpenAI 兼容接口的 AI 助手，内置 DeepSeek/智谱GLM/Kimi/MiniMax/通义Qwen 提供商预设。触发词：柬单企业顾问（艾特/直呼均可）/ mark / 起床了绵绵 / 小春 / 小助手，消息任意位置出现即触发（大小写不敏感），其他命令走原插件不抢。注意 rule 用 raw 前缀避开 sillyGirl 的整串锚定（否则 @机器人 场景开头带 @ 会匹配不上）。支持 BaseURL/Key/模型/长系统提示词（变量插值）/上下文轮数/工具调用/思考模式控制（thinking 默认 off 关闭，语音回复场景无需思考）。v3.1 起会话记忆统一走 mm_chat_history，与 voiceChat/visionChat 共享上下文（发图识别后可直接追问图片内容）。v3.4 起工具统一由 aiToolCore 注册表提供（时间/天气/公网IP/Tavily 联网搜索），新增工具无需改本插件。v3.5.6 起支持多模态：群里发图+@机器人直接看图说话（yyw 拼公网图片 URL / gewe 走 CDN，需填 yyw 媒体公网地址，和 visionChat 共享）。v3.5.7 修复纯发图+触发词（无附带文字）时直接 return 不走模型的问题。v3.5.8 兼容 gewe 引用图片回复：从原始 XML 里直接提取 cdnurl 公网图片地址，并剥除 XML 残留。v3.5.9 改为先调识图模型把图片转文字描述再拼进对话（兼容纯文本对话模型，不再直接传 image_url）。v3.5.10 加严格图片标记判断（CQ:image / YW.img / refermsg里的img标签），只有确认有图才识图，普通对话零干扰；加调试日志方便排查。v3.5.11 识图改用独立多模态模型配置（默认 MiniMax，读 ~/.mmx/config.json，和 visionChat 共用），对话模型不需要支持多模态。v3.5.12 修复 gewe 引用图片：从 refermsg XML 里完整提取 cdnurl+aeskey+size+suffix，调 downloadCdn 换真实公网图片 URL（之前直接把 cdnurl 当图片URL用，实际是加密CDN标识）。]
+// [desc: 接入任意 OpenAI 兼容接口的 AI 助手，内置 DeepSeek/智谱GLM/Kimi/MiniMax/通义Qwen 提供商预设。触发词：柬单企业顾问（艾特/直呼均可）/ mark / 起床了绵绵 / 小春 / 小助手，消息任意位置出现即触发（大小写不敏感），其他命令走原插件不抢。注意 rule 用 raw 前缀避开 sillyGirl 的整串锚定（否则 @机器人 场景开头带 @ 会匹配不上）。支持 BaseURL/Key/模型/长系统提示词（变量插值）/上下文轮数/工具调用/思考模式控制（thinking 默认 off 关闭，语音回复场景无需思考）。v3.1 起会话记忆统一走 mm_chat_history，与 voiceChat/visionChat 共享上下文（发图识别后可直接追问图片内容）。v3.4 起工具统一由 aiToolCore 注册表提供（时间/天气/公网IP/Tavily 联网搜索），新增工具无需改本插件。]
 // [author: Mianpro官方]
-// [version: v3.5.12]
+// [version: v3.5.5]
 // [rule: raw 柬单企业顾问|起床了绵绵|mark|Mark|小春|小助手]
 // [status: true]
 // [admin: false]
@@ -128,23 +128,6 @@ const form = new plugin.Form({
     .title("返回值取值字段")
     .description("从 API 返回 JSON 里取 silk 公网 URL 的字段")
     .default("silk_url"),
-  yyw_media_base: plugin.Form.string()
-    .title("yyw 媒体公网地址（看图用）")
-    .description("yyw 平台发图时拼公网图片 URL 用，如 http://你的服务器:端口（不含末尾斜杠）。和 visionChat 同一份配置；留空=yyw 平台发图无法识别")
-    .default(""),
-  vision_base_url: plugin.Form.string()
-    .title("识图模型 BaseURL（可选）")
-    .description("发图时用的多模态识图模型地址。留空默认 MiniMax（https://api.minimax.cn/v1），自动读 ~/.mmx/config.json 的 Key")
-    .default(""),
-  vision_api_key: plugin.Form.string()
-    .title("识图模型 API Key（可选）")
-    .description("多模态识图模型的 Key。留空自动读 ~/.mmx/config.json 的 MiniMax Key（和 visionChat 共用）。对话模型不需要支持多模态")
-    .format("password")
-    .default(""),
-  vision_model: plugin.Form.string()
-    .title("识图模型名（可选）")
-    .description("多模态识图模型名。留空默认 MiniMax-M3.1-Flash-Preview；其他支持 image_url 的模型如 glm-4v / qwen-vl-plus 均可")
-    .default(""),
 });
 
 // 上下文按 platform:chatId:userId 隔离——统一会话记忆由 openaiChatCore 提供（与 voiceChat/visionChat 互通）
@@ -298,129 +281,6 @@ async function handleCancelReminder(arg) {
 
 let cfg = {};
 
-// yyw 图片转换脚本有约 2-3 秒延迟，轮询等公网 URL 就绪
-async function waitForMediaUrl(url, timeoutMs = 15000) {
-  const deadline = Date.now() + timeoutMs;
-  while (Date.now() < deadline) {
-    try {
-      const res = await fetch(url, { signal: AbortSignal.timeout(5000) });
-      if (res.ok) return;
-    } catch (_) {}
-    await new Promise((r) => setTimeout(r, 1000));
-  }
-  throw new Error("图片公网地址等待超时");
-}
-
-// 判断消息里是否确实包含图片标记（只有确认有图才走识图，普通对话绝不打扰）
-function hasImageMark(raw, platform) {
-  if (platform === "yyw") return /\[YW\.img[,\]]/i.test(raw);
-  if (platform === "gewe") {
-    // 标准 CQ:image 格式
-    if (/\[CQ:image[,\]]/i.test(raw)) return true;
-    // 引用消息里的 <refermsg> 块中包含 <img 标签
-    const referMatch = raw.match(/<refermsg[^>]*>([\s\S]*?)<\/refermsg>/i);
-    if (referMatch && /<img[\s>]/i.test(referMatch[1])) return true;
-    return false;
-  }
-  return false;
-}
-
-// 从消息原文提取图片公网 URL（yyw 拼公网 / gewe 走 CDN），提取不到返回空串
-async function extractImageUrl(rawContent, platform) {
-  if (!hasImageMark(rawContent, platform)) return "";
-  console.log(`[aiChat] 检测到图片标记，开始提取URL，raw前200字: ${rawContent.slice(0, 200)}`);
-
-  if (platform === "yyw") {
-    const base = String(cfg.yyw_media_base || "").trim().replace(/\/+$/, "");
-    if (!base) return "";
-    const m = rawContent.match(/\[YW\.img,file=([^,\]]+)/);
-    if (!m) return "";
-    const id = m[1].trim().replace(/\.img$/i, "");
-    const url = `${base}/image/${id}.jpg`;
-    await waitForMediaUrl(url);
-    return url;
-  }
-  if (platform === "gewe") {
-    // 1. 标准 CQ:image 格式（直接发图，参数齐全）
-    try {
-      const url = await geweCore.downloadImageFromCq(rawContent);
-      if (url) return url;
-    } catch (_) {}
-    // 2. 引用消息：从 <refermsg> 块里完整提取 cdnurl + aeskey + size + suffix，调 downloadCdn 换真URL
-    const referMatch = rawContent.match(/<refermsg[^>]*>([\s\S]*?)<\/refermsg>/i);
-    if (referMatch) {
-      const block = referMatch[1];
-      const cdnMatch = block.match(/cdnurl="([^"]+)"/i) || block.match(/<cdnurl[^>]*>([^<]+)<\/cdnurl>/i);
-      if (cdnMatch) {
-        const fileId = cdnMatch[1].trim();
-        const aeskey = (block.match(/aeskey="([^"]+)"/i) || [])[1] || (block.match(/<aeskey[^>]*>([^<]+)<\/aeskey>/i) || [])[1] || "";
-        const size = (block.match(/total_?size="?(\d+)"?/i) || [])[1] || (block.match(/<total_?size[^>]*>([^<]+)<\/total_?size>/i) || [])[1] || "0";
-        const suffix = (block.match(/suffix="?(\w+)"?/i) || [])[1] || "jpg";
-        console.log(`[aiChat] 引用图片参数: fileId=${fileId.slice(0,40)}... aeskey=${aeskey.slice(0,20)}... size=${size} suffix=${suffix}`);
-        // cdnurl 如果已经是 http 开头，直接用；否则当 fileId 调 downloadCdn
-        if (/^https?:\/\//i.test(fileId)) return fileId;
-        try {
-          return await geweCore.downloadCdn({ fileId, aesKey: aeskey, size, suffix, type: 2 });
-        } catch (e) {
-          console.log(`[aiChat] downloadCdn失败: ${e?.message || e}`);
-        }
-      }
-    }
-    return "";
-  }
-  return "";
-}
-
-// 读 ~/.mmx/config.json 的 MiniMax Key（和 visionChat 共用，用户已配过）
-function readMmxApiKey() {
-  try {
-    const os = require("os");
-    const fs = require("fs");
-    const path = require("path");
-    const p = path.join(os.homedir(), ".mmx", "config.json");
-    if (!fs.existsSync(p)) return "";
-    const data = JSON.parse(fs.readFileSync(p, "utf-8"));
-    return String(data?.apiKey || data?.api_key || data?.token || "").trim();
-  } catch (_) {
-    return "";
-  }
-}
-
-// 用独立的多模态模型识图（不依赖对话模型是否支持多模态），把图片转成文字描述
-async function visionDescribe(imgUrl) {
-  // 优先用 aiChat form 里填的识图配置，留空则默认 MiniMax（读 ~/.mmx/config.json）
-  const base = String(cfg.vision_base_url || "").trim().replace(/\/+$/, "") || "https://api.minimax.cn/v1";
-  const key = String(cfg.vision_api_key || "").trim() || readMmxApiKey();
-  const model = String(cfg.vision_model || "").trim() || "MiniMax-M3.1-Flash-Preview";
-  if (!key) throw new Error("未找到识图API Key：请填 vision_api_key，或先 mmx auth login");
-
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 30000);
-  try {
-    const res = await fetch(`${base}/chat/completions`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", Authorization: `Bearer ${key}` },
-      body: JSON.stringify({
-        model,
-        messages: [{
-          role: "user",
-          content: [
-            { type: "text", text: "请用中文简短描述这张图片的内容（30字以内）" },
-            { type: "image_url", image_url: { url: imgUrl, detail: "low" } },
-          ],
-        }],
-        max_completion_tokens: 200,
-      }),
-      signal: controller.signal,
-    });
-    if (!res.ok) throw new Error(`识图HTTP ${res.status}: ${(await res.text()).slice(0, 100)}`);
-    const data = await res.json();
-    return String(data?.choices?.[0]?.message?.content || "").trim();
-  } finally {
-    clearTimeout(timer);
-  }
-}
-
 async function main() {
   cfg = (await form.get()) || {};
   // 模型配置解析：provider 预设兜底 + 手动覆盖
@@ -450,25 +310,9 @@ async function main() {
   const chatId = String((await s.getChatId()) || "");
   const privateChat = isPrivateChat(chatId, userId);
 
-  // rule 已过滤：能走到这里说明消息中出现了触发词，剥掉触发词后交给模型
-  // 先提取图片 URL，再调识图模型转成文字描述拼进对话（兼容纯文本对话模型）
-  const platformLc = String(await s.getPlatform()).toLowerCase();
-  let imgUrl = "";
-  let imgDesc = "";
-  try {
-    imgUrl = await extractImageUrl(rawContent, platformLc);
-    if (imgUrl) {
-      imgDesc = await visionDescribe(imgUrl);
-      console.log(`[aiChat] 图片描述: ${imgDesc.slice(0, 80)}`);
-    }
-  } catch (e) {
-    console.log(`[aiChat] 提取/识别图片失败: ${e?.message || e}`);
-  }
-  // 剥掉消息里的图片占位符文本和引用消息的 XML 片段
+  // rule 已过滤：能走到这里说明消息中出现了触发词（柬单企业顾问/起床了绵绵/mark/小春/小助手），剥掉触发词后交给模型
+  // @ 前缀也要剥掉（艾特机器人时 Gewe content 带 "@昵称"）
   let promptText = rawContent
-    .replace(/\[YW\.img[^\]]*\]/g, "")
-    .replace(/\[CQ:image[^\]]*\]/g, "")
-    .replace(/<[^>]+>/g, "") // 剥掉引用消息的 XML 标签
     .replace(TRIGGER_RE, "")
     .replace(/^[@，,、:：\s]+|[，,、:：\s]+$/g, "")
     .trim();
@@ -500,7 +344,7 @@ async function main() {
   if (!resolvedChat.apiKey) return;
   if (privateChat && !cfg.enable_private) return;
   if (!privateChat && !cfg.enable_group) return;
-  if (!promptText && !imgUrl) return; // 只发了个"ai"，等用户补内容
+  if (!promptText) return; // 只发了个"ai"，等用户补内容
 
   const now = new Date();
   const weekdays = ["日", "一", "二", "三", "四", "五", "六"];
@@ -526,11 +370,7 @@ async function main() {
     // 工具使用规范：调用过联网搜索等工具后要总结归纳作答，不要直接罗列原始条目
     finalSystemPrompt +=
       "\n\n【工具使用规范】当你调用过 get_weather / search_web 等工具后：请通读工具返回的信息，用自己的话组织答案回答用户，必要时给出来源链接；禁止把工具返回的原始条目、标题列表或代码块直接转发给用户。";
-    // 把图片描述拼进用户消息（纯文本，兼容任何对话模型）
-    const userText = imgDesc
-      ? `${promptText ? promptText + "\n" : ""}[图片内容] ${imgDesc}`
-      : promptText;
-    const messages = ai.buildMessages(finalSystemPrompt, history, userText || "你好");
+    const messages = ai.buildMessages(finalSystemPrompt, history, promptText);
     const result = await tools.chatLoop(
       ai,
       {
@@ -564,7 +404,7 @@ async function main() {
     if (cfg.show_thinking && thinkText) {
       finalReply = `🤔 思考：${clampReply(thinkText).slice(0, 800)}\n\n${replyText}`;
     }
-    history.push({ role: "user", content: userText });
+    history.push({ role: "user", content: promptText });
     history.push({ role: "assistant", content: replyText });
     await ai.saveHistory(key, history, Number(cfg.context_rounds) || 10);
     // 语音回复模式
