@@ -1,8 +1,8 @@
 // [title: AI 聊天助手]
 // [name: aiChat]
-// [desc: 接入任意 OpenAI 兼容接口的 AI 助手，内置 DeepSeek/智谱GLM/Kimi/MiniMax/通义Qwen 提供商预设。触发词：柬单企业顾问（艾特/直呼均可）/ mark / 起床了绵绵 / 小春 / 小助手，消息任意位置出现即触发（大小写不敏感），其他命令走原插件不抢。注意 rule 用 raw 前缀避开 sillyGirl 的整串锚定（否则 @机器人 场景开头带 @ 会匹配不上）。支持 BaseURL/Key/模型/长系统提示词（变量插值）/上下文轮数/工具调用/思考模式控制（thinking 默认 off 关闭，语音回复场景无需思考）。v3.1 起会话记忆统一走 mm_chat_history，与 voiceChat/visionChat 共享上下文（发图识别后可直接追问图片内容）。v3.4 起工具统一由 aiToolCore 注册表提供（时间/天气/公网IP/Tavily 联网搜索），新增工具无需改本插件。]
+// [desc: 接入任意 OpenAI 兼容接口的 AI 助手，内置 DeepSeek/智谱GLM/Kimi/MiniMax/通义Qwen 提供商预设。触发词：柬单企业顾问（艾特/直呼均可）/ mark / 起床了绵绵 / 小春 / 小助手，消息任意位置出现即触发（大小写不敏感），其他命令走原插件不抢。注意 rule 用 raw 前缀避开 sillyGirl 的整串锚定（否则 @机器人 场景开头带 @ 会匹配不上）。支持 BaseURL/Key/模型/长系统提示词（变量插值）/上下文轮数/工具调用/思考模式控制（thinking 默认 off 关闭，语音回复场景无需思考）。v3.1 起会话记忆统一走 mm_chat_history，与 voiceChat/visionChat 共享上下文（发图识别后可直接追问图片内容）。v3.4 起工具统一由 aiToolCore 注册表提供（时间/天气/公网IP/Tavily 联网搜索），新增工具无需改本插件。v3.5.6 起支持多模态：群里发图+@机器人直接看图说话（yyw 拼公网图片 URL / gewe 走 CDN，需填 yyw 媒体公网地址，和 visionChat 共享）。]
 // [author: Mianpro官方]
-// [version: v3.5.5]
+// [version: v3.5.6]
 // [rule: raw 柬单企业顾问|起床了绵绵|mark|Mark|小春|小助手]
 // [status: true]
 // [admin: false]
@@ -128,6 +128,10 @@ const form = new plugin.Form({
     .title("返回值取值字段")
     .description("从 API 返回 JSON 里取 silk 公网 URL 的字段")
     .default("silk_url"),
+  yyw_media_base: plugin.Form.string()
+    .title("yyw 媒体公网地址（看图用）")
+    .description("yyw 平台发图时拼公网图片 URL 用，如 http://你的服务器:端口（不含末尾斜杠）。和 visionChat 同一份配置；留空=yyw 平台发图无法识别")
+    .default(""),
 });
 
 // 上下文按 platform:chatId:userId 隔离——统一会话记忆由 openaiChatCore 提供（与 voiceChat/visionChat 互通）
@@ -281,6 +285,41 @@ async function handleCancelReminder(arg) {
 
 let cfg = {};
 
+// yyw 图片转换脚本有约 2-3 秒延迟，轮询等公网 URL 就绪
+async function waitForMediaUrl(url, timeoutMs = 15000) {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    try {
+      const res = await fetch(url, { signal: AbortSignal.timeout(5000) });
+      if (res.ok) return;
+    } catch (_) {}
+    await new Promise((r) => setTimeout(r, 1000));
+  }
+  throw new Error("图片公网地址等待超时");
+}
+
+// 从消息原文提取图片公网 URL（yyw 拼公网 / gewe 走 CDN 下载），提取不到返回空串
+async function extractImageUrl(rawContent, platform) {
+  if (platform === "yyw") {
+    const base = String(cfg.yyw_media_base || "").trim().replace(/\/+$/, "");
+    if (!base) return "";
+    const m = rawContent.match(/\[YW\.img,file=([^,\]]+)/);
+    if (!m) return "";
+    const id = m[1].trim().replace(/\.img$/i, "");
+    const url = `${base}/image/${id}.jpg`;
+    await waitForMediaUrl(url);
+    return url;
+  }
+  if (platform === "gewe") {
+    try {
+      return await geweCore.downloadImageFromCq(rawContent);
+    } catch (_) {
+      return "";
+    }
+  }
+  return "";
+}
+
 async function main() {
   cfg = (await form.get()) || {};
   // 模型配置解析：provider 预设兜底 + 手动覆盖
@@ -310,9 +349,19 @@ async function main() {
   const chatId = String((await s.getChatId()) || "");
   const privateChat = isPrivateChat(chatId, userId);
 
-  // rule 已过滤：能走到这里说明消息中出现了触发词（柬单企业顾问/起床了绵绵/mark/小春/小助手），剥掉触发词后交给模型
-  // @ 前缀也要剥掉（艾特机器人时 Gewe content 带 "@昵称"）
+  // rule 已过滤：能走到这里说明消息中出现了触发词，剥掉触发词后交给模型
+  // 先检测并提取图片 URL（yyw/gewe 多模态），再剥图片占位符和触发词
+  const platformLc = String(await s.getPlatform()).toLowerCase();
+  let imgUrl = "";
+  try {
+    imgUrl = await extractImageUrl(rawContent, platformLc);
+  } catch (e) {
+    console.log(`[aiChat] 提取图片失败: ${e?.message || e}`);
+  }
+  // 剥掉消息里的图片占位符文本
   let promptText = rawContent
+    .replace(/\[YW\.img[^\]]*\]/g, "")
+    .replace(/\[CQ:image[^\]]*\]/g, "")
     .replace(TRIGGER_RE, "")
     .replace(/^[@，,、:：\s]+|[，,、:：\s]+$/g, "")
     .trim();
@@ -370,7 +419,17 @@ async function main() {
     // 工具使用规范：调用过联网搜索等工具后要总结归纳作答，不要直接罗列原始条目
     finalSystemPrompt +=
       "\n\n【工具使用规范】当你调用过 get_weather / search_web 等工具后：请通读工具返回的信息，用自己的话组织答案回答用户，必要时给出来源链接；禁止把工具返回的原始条目、标题列表或代码块直接转发给用户。";
-    const messages = ai.buildMessages(finalSystemPrompt, history, promptText);
+    const messages = ai.buildMessages(finalSystemPrompt, history, promptText || (imgUrl ? "请看这张图片" : "你好"));
+    // 多模态：如果提取到了图片 URL，把最后一条 user message 改成带 image_url 的数组形式
+    if (imgUrl) {
+      messages[messages.length - 1] = {
+        role: "user",
+        content: [
+          { type: "text", text: promptText || "请看这张图片" },
+          { type: "image_url", image_url: { url: imgUrl, detail: "auto" } },
+        ],
+      };
+    }
     const result = await tools.chatLoop(
       ai,
       {
@@ -404,7 +463,7 @@ async function main() {
     if (cfg.show_thinking && thinkText) {
       finalReply = `🤔 思考：${clampReply(thinkText).slice(0, 800)}\n\n${replyText}`;
     }
-    history.push({ role: "user", content: promptText });
+    history.push({ role: "user", content: imgUrl ? `[图片] ${promptText}` : promptText });
     history.push({ role: "assistant", content: replyText });
     await ai.saveHistory(key, history, Number(cfg.context_rounds) || 10);
     // 语音回复模式
