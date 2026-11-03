@@ -1,8 +1,8 @@
 // [title: AI 聊天助手]
 // [name: aiChat]
-// [desc: 接入任意 OpenAI 兼容接口的 AI 助手，内置 DeepSeek/智谱GLM/Kimi/MiniMax/通义Qwen 提供商预设。触发词：柬单企业顾问（艾特/直呼均可）/ mark / 起床了绵绵 / 小春 / 小助手，消息任意位置出现即触发（大小写不敏感），其他命令走原插件不抢。注意 rule 用 raw 前缀避开 sillyGirl 的整串锚定（否则 @机器人 场景开头带 @ 会匹配不上）。支持 BaseURL/Key/模型/长系统提示词（变量插值）/上下文轮数/工具调用/思考模式控制（thinking 默认 off 关闭，语音回复场景无需思考）。v3.1 起会话记忆统一走 mm_chat_history，与 voiceChat/visionChat 共享上下文（发图识别后可直接追问图片内容）。v3.4 起工具统一由 aiToolCore 注册表提供（时间/天气/公网IP/Tavily 联网搜索），新增工具无需改本插件。v3.5.6 起支持多模态：群里发图+@机器人直接看图说话（yyw 拼公网图片 URL / gewe 走 CDN，需填 yyw 媒体公网地址，和 visionChat 共享）。v3.5.7 修复纯发图+触发词（无附带文字）时直接 return 不走模型的问题。v3.5.8 兼容 gewe 引用图片回复：从原始 XML 里直接提取 cdnurl 公网图片地址，并剥除 XML 残留。]
+// [desc: 接入任意 OpenAI 兼容接口的 AI 助手，内置 DeepSeek/智谱GLM/Kimi/MiniMax/通义Qwen 提供商预设。触发词：柬单企业顾问（艾特/直呼均可）/ mark / 起床了绵绵 / 小春 / 小助手，消息任意位置出现即触发（大小写不敏感），其他命令走原插件不抢。注意 rule 用 raw 前缀避开 sillyGirl 的整串锚定（否则 @机器人 场景开头带 @ 会匹配不上）。支持 BaseURL/Key/模型/长系统提示词（变量插值）/上下文轮数/工具调用/思考模式控制（thinking 默认 off 关闭，语音回复场景无需思考）。v3.1 起会话记忆统一走 mm_chat_history，与 voiceChat/visionChat 共享上下文（发图识别后可直接追问图片内容）。v3.4 起工具统一由 aiToolCore 注册表提供（时间/天气/公网IP/Tavily 联网搜索），新增工具无需改本插件。v3.5.6 起支持多模态：群里发图+@机器人直接看图说话（yyw 拼公网图片 URL / gewe 走 CDN，需填 yyw 媒体公网地址，和 visionChat 共享）。v3.5.7 修复纯发图+触发词（无附带文字）时直接 return 不走模型的问题。v3.5.8 兼容 gewe 引用图片回复：从原始 XML 里直接提取 cdnurl 公网图片地址，并剥除 XML 残留。v3.5.9 改为先调识图模型把图片转文字描述再拼进对话（兼容纯文本对话模型，不再直接传 image_url）。]
 // [author: Mianpro官方]
-// [version: v3.5.8]
+// [version: v3.5.9]
 // [rule: raw 柬单企业顾问|起床了绵绵|mark|Mark|小春|小助手]
 // [status: true]
 // [admin: false]
@@ -325,6 +325,37 @@ async function extractImageUrl(rawContent, platform) {
   return "";
 }
 
+// 先用多模态模型把图片转成文字描述（再把描述拼进对话，兼容纯文本对话模型）
+async function visionDescribe(imgUrl) {
+  const key = resolvedChat.apiKey;
+  if (!key) throw new Error("未配置 API Key，无法识图");
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 30000);
+  try {
+    const res = await fetch(`${resolvedChat.baseUrl}/chat/completions`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${key}` },
+      body: JSON.stringify({
+        model: resolvedChat.model,
+        messages: [{
+          role: "user",
+          content: [
+            { type: "text", text: "请用中文简短描述这张图片的内容（30字以内）" },
+            { type: "image_url", image_url: { url: imgUrl, detail: "low" } },
+          ],
+        }],
+        max_tokens: 200,
+      }),
+      signal: controller.signal,
+    });
+    if (!res.ok) throw new Error(`识图HTTP ${res.status}`);
+    const data = await res.json();
+    return String(data?.choices?.[0]?.message?.content || "").trim();
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 async function main() {
   cfg = (await form.get()) || {};
   // 模型配置解析：provider 预设兜底 + 手动覆盖
@@ -355,13 +386,18 @@ async function main() {
   const privateChat = isPrivateChat(chatId, userId);
 
   // rule 已过滤：能走到这里说明消息中出现了触发词，剥掉触发词后交给模型
-  // 先检测并提取图片 URL（yyw/gewe 多模态），再剥图片占位符和触发词
+  // 先提取图片 URL，再调识图模型转成文字描述拼进对话（兼容纯文本对话模型）
   const platformLc = String(await s.getPlatform()).toLowerCase();
   let imgUrl = "";
+  let imgDesc = "";
   try {
     imgUrl = await extractImageUrl(rawContent, platformLc);
+    if (imgUrl) {
+      imgDesc = await visionDescribe(imgUrl);
+      console.log(`[aiChat] 图片描述: ${imgDesc.slice(0, 80)}`);
+    }
   } catch (e) {
-    console.log(`[aiChat] 提取图片失败: ${e?.message || e}`);
+    console.log(`[aiChat] 提取/识别图片失败: ${e?.message || e}`);
   }
   // 剥掉消息里的图片占位符文本和引用消息的 XML 片段
   let promptText = rawContent
@@ -425,17 +461,11 @@ async function main() {
     // 工具使用规范：调用过联网搜索等工具后要总结归纳作答，不要直接罗列原始条目
     finalSystemPrompt +=
       "\n\n【工具使用规范】当你调用过 get_weather / search_web 等工具后：请通读工具返回的信息，用自己的话组织答案回答用户，必要时给出来源链接；禁止把工具返回的原始条目、标题列表或代码块直接转发给用户。";
-    const messages = ai.buildMessages(finalSystemPrompt, history, promptText || (imgUrl ? "请看这张图片" : "你好"));
-    // 多模态：如果提取到了图片 URL，把最后一条 user message 改成带 image_url 的数组形式
-    if (imgUrl) {
-      messages[messages.length - 1] = {
-        role: "user",
-        content: [
-          { type: "text", text: promptText || "请看这张图片" },
-          { type: "image_url", image_url: { url: imgUrl, detail: "auto" } },
-        ],
-      };
-    }
+    // 把图片描述拼进用户消息（纯文本，兼容任何对话模型）
+    const userText = imgDesc
+      ? `${promptText ? promptText + "\n" : ""}[图片内容] ${imgDesc}`
+      : promptText;
+    const messages = ai.buildMessages(finalSystemPrompt, history, userText || "你好");
     const result = await tools.chatLoop(
       ai,
       {
@@ -469,7 +499,7 @@ async function main() {
     if (cfg.show_thinking && thinkText) {
       finalReply = `🤔 思考：${clampReply(thinkText).slice(0, 800)}\n\n${replyText}`;
     }
-    history.push({ role: "user", content: imgUrl ? `[图片] ${promptText}` : promptText });
+    history.push({ role: "user", content: userText });
     history.push({ role: "assistant", content: replyText });
     await ai.saveHistory(key, history, Number(cfg.context_rounds) || 10);
     // 语音回复模式
