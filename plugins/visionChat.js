@@ -1,8 +1,8 @@
 // [title: 图片识图助手]
 // [name: visionChat]
-// [desc: 仅 Gewe / yyw 平台、仅管理员可用。收到图片消息后调用多模态大模型识图并转成中文文字回复。基于 OpenAI 兼容 Chat Completions + image_url 多模态输入，默认 MiniMax-M3.1-Flash-Preview（M Plan 原生多模态，Key 自动读 ~/.mmx/config.json），也可配置其他支持 image_url 的厂商（GLM-4V / Qwen-VL / Kimi 等）。Gewe 走 CDN 下载；yyw 解析 [YW.img] 并拼接「yyw 媒体公网地址」公网图片 URL（脚本转换有约 2 秒延迟，已自动等待；该地址只在本地配置，不写入代码）。v1.2.3 修复rule缺少raw前缀导致整串锚定匹配不到图片消息的bug。v1.2.2 放宽触发规则：消息中只要出现 YW.img / CQ:image 即命中，兼容群里回复/引用消息时附带图片的场景。v1.1 起识图结果写入统一会话记忆 mm_chat_history，后续可直接用 aiChat / voiceChat 追问图片内容（只带识图文字描述，不带原图）。]
+// [desc: 仅 Gewe / yyw 平台、仅管理员可用。收到图片消息后调用多模态大模型识图并转成中文文字回复。基于 OpenAI 兼容 Chat Completions + image_url 多模态输入，默认 MiniMax-M3.1-Flash-Preview（M Plan 原生多模态，Key 自动读 ~/.mmx/config.json），也可配置其他支持 image_url 的厂商（GLM-4V / Qwen-VL / Kimi 等）。Gewe 走 CDN 下载；yyw 解析 [YW.img] 并拼接「yyw 媒体公网地址」公网图片 URL（脚本转换有约 2 秒延迟，已自动等待；该地址只在本地配置，不写入代码）。v1.2.3 修复rule缺少raw前缀导致整串锚定匹配不到图片消息的bug。v1.2.4 错误回显全部脱敏：不再把图片 URL/服务器地址/接口原始返回发到群里，详细原因只写本地日志；yyw 媒体等待超时放宽到 25 秒。v1.2.2 放宽触发规则：消息中只要出现 YW.img / CQ:image 即命中，兼容群里回复/引用消息时附带图片的场景。v1.1 起识图结果写入统一会话记忆 mm_chat_history，后续可直接用 aiChat / voiceChat 追问图片内容（只带识图文字描述，不带原图）。]
 // [author: Mianpro官方]
-// [version: v1.2.3]
+// [version: v1.2.4]
 // [rule: raw YW\.img|CQ:image]
 // [status: true]
 // [admin: true]
@@ -24,8 +24,8 @@ const mm = require("./openaiChatCore.js");
 const API_TIMEOUT = 90000; // 多模态识别 90 秒超时
 const DEFAULT_BASE = "https://api.minimax.cn/v1";
 
-// 轮询等待媒体公网 URL 就绪：转换脚本有延迟（约2~3秒甚至更久），404/未就绪时每 1 秒重试，最长等 15 秒
-async function waitForMediaUrl(url, { timeoutMs = 15000, intervalMs = 1000 } = {}) {
+// 轮询等待媒体公网 URL 就绪：转换脚本有延迟（约2~3秒甚至更久），404/未就绪时每 1 秒重试，最长等 25 秒
+async function waitForMediaUrl(url, { timeoutMs = 25000, intervalMs = 1000 } = {}) {
   const deadline = Date.now() + timeoutMs;
   let lastStatus = 0;
   while (Date.now() < deadline) {
@@ -36,8 +36,17 @@ async function waitForMediaUrl(url, { timeoutMs = 15000, intervalMs = 1000 } = {
     } catch (_) {}
     await new Promise((r) => setTimeout(r, intervalMs));
   }
-  throw new Error("图片文件等待超时（HTTP " + (lastStatus || "无响应") + "）：" + url);
+  // 注意：错误信息里不带 URL（含服务器地址/IP），只写进本地日志
+  const err = new Error("媒体文件未就绪（HTTP " + (lastStatus || "无响应") + "）");
+  err.detail = url;
+  throw err;
 }
+
+// 面向群聊的错误文案：统一脱敏，绝不回显 URL / IP / 接口原始返回
+const MSG_MEDIA_NOT_READY = "图片还没转换好，稍等几秒再发一次试试";
+const MSG_MEDIA_BASE_MISSING = "识图功能还没配置好，请联系管理员";
+const MSG_IMAGE_FAILED = "这张图我暂时看不清楚，换一张试试";
+const MSG_VISION_FAILED = "识图服务暂时不可用，稍后再试";
 const DEFAULT_MODEL = "MiniMax-M3.1-Flash-Preview";
 
 const form = new plugin.Form({
@@ -170,36 +179,44 @@ async function main() {
   if (platform === "yyw") {
     const base = String(cfg.yyw_media_base || "").trim().replace(/\/+$/, "");
     if (!base) {
-      await s.reply("yyw 平台识图需先在插件配置里填写「yyw 媒体公网地址」");
+      await s.reply(MSG_MEDIA_BASE_MISSING);
       return;
     }
     const fileMatch = raw.match(/\[YW\.img,file=([^,\]]+)/);
     const file = fileMatch ? fileMatch[1].trim() : "";
     if (!file) {
-      await s.reply("未获取到图片地址");
+      await s.reply(MSG_IMAGE_FAILED);
       return;
     }
     // 去掉 .img 扩展名，按 .jpg 拼接（转换服务一般输出 jpg；个别 png 若识别失败可调整）
     const id = file.replace(/\.img$/i, "");
     imgUrl = `${base}/image/${id}.jpg`;
-    await waitForMediaUrl(imgUrl); // 轮询等转换脚本就绪（2~3秒或更久），就绪后才喂给识图 API
+    try {
+      await waitForMediaUrl(imgUrl); // 轮询等转换脚本就绪（2~3秒或更久），就绪后才喂给识图 API
+    } catch (e) {
+      // 详细原因只写本地日志，不回显到群
+      console.log(`[visionChat] 媒体未就绪: ${e?.message || e} | ${e?.detail || imgUrl}`);
+      await s.reply(MSG_MEDIA_NOT_READY);
+      return;
+    }
   } else {
     try {
       imgUrl = await geweCore.downloadImageFromCq(raw);
     } catch (e) {
-      await s.reply(`取图失败：${String(e?.message || e).slice(0, 100)}`);
+      console.log(`[visionChat] gewe取图失败: ${e?.message || e}`);
+      await s.reply(MSG_IMAGE_FAILED);
       return;
     }
   }
   if (!imgUrl) {
-    await s.reply("未获取到图片地址");
+    await s.reply(MSG_IMAGE_FAILED);
     return;
   }
 
   try {
     const desc = await visionChat(imgUrl);
     if (!desc) {
-      await s.reply("识别完成，但没有返回描述内容");
+      await s.reply("这张图没识别出内容，换一张试试");
       return;
     }
     await s.reply(desc.slice(0, 1500));
@@ -216,10 +233,16 @@ async function main() {
       console.log(`[visionChat] 写入会话记忆失败: ${e?.message || e}`);
     }
   } catch (err) {
-    await s.reply(`识图失败：${String(err?.message || err).slice(0, 150)}`);
+    // 详细错误（可能含接口地址/返回体）只写本地日志
+    console.log(`[visionChat] 识图失败: ${String(err?.message || err).slice(0, 200)}`);
+    await s.reply(MSG_VISION_FAILED);
   }
 }
 
 main().catch(async (error) => {
-  await s.reply(`识图异常：${String(error?.message || error).slice(0, 150)}`);
+  // 兜底异常同样脱敏，只写本地日志
+  console.log(`[visionChat] 插件异常: ${String(error?.message || error).slice(0, 200)}`);
+  try {
+    await s.reply(MSG_VISION_FAILED);
+  } catch (_) {}
 });
