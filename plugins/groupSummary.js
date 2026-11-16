@@ -2,7 +2,7 @@
 // [name: groupSummary]
 // [desc: 持续记录群聊消息（仅群聊，私聊不记录），发"群聊总结"用 AI 生成当日精华总结报告（默认仅管理员可用）。支持文字/图片两种输出（图片用 MiniMax 画一张总结封面）。仅 gewe 平台可用；监控群在「白名单/定时总结群列表(schedule_groups)」里配置（格式 gewe:群ID,gewe:群ID），白名单外群不记录、不响应命令、不参与定时。定时推送统一由 Admin 面板「定时任务」触发（推荐 0 18 * * *），总结对象=白名单群，发送目标=任务 senders 配置的 ChatID（gewe:群ID=发群里 / gewe:个人wxid=发私聊），插件不再自带 cron 避免双入口重复推送，并有当日去重防重复。]
 // [author: Mianpro官方]
-// [version: v1.3.4]
+// [version: v1.3.5]
 // [rule: raw [\s\S]*]
 // [status: true]
 // [admin: false]
@@ -247,8 +247,12 @@ async function main() {
   cfg = (await form.get()) || {};
   const raw = String((await s.getMsg()) || "").trim();
 
-  // 定时任务入口：cron 触发时没有消息内容，走每日定时总结
-  if (!raw) {
+  // 定时任务入口：
+  // 1) 口令为空时 sillyGirl 把命令本身(groupSummary.js)作为消息内容传进来
+  // 2) 口令非空时传口令字符串；另外空消息也兜底
+  const trimmed = raw.replace(/\.js$/i, "").trim().toLowerCase();
+  if (!raw || trimmed === "groupsummary" || trimmed === "groupSummary") {
+    console.log(`[groupSummary] 定时任务触发，raw="${raw}"`);
     await runScheduled(cfg);
     return;
   }
@@ -397,7 +401,10 @@ async function runScheduled(cfg) {
       // 当日去重：同群同一天只推一次（防 Admin 多 sender 重复 Handle / 定时与手动重触发）
       const dedupKey = `done:${platform}:${chatId}:${todayKey}`;
       try {
-        if (await dedupBucket.get(dedupKey, "")) continue;
+        if (await dedupBucket.get(dedupKey, "")) {
+          console.log(`[groupSummary] 群 ${chatId} 今日已总结过，跳过`);
+          continue;
+        }
       } catch (_) {}
       const summary = await summarize(items, cfg);
       if (!summary) continue;
